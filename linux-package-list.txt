@@ -1,3 +1,4 @@
 sudo
 ffmpeg
 git
+zsh

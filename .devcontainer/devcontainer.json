@@ -3,5 +3,18 @@
     "build": {
         "dockerfile": "../Dockerfile",
         "context": "../"
+    },
+    // Set *default* container specific settings.json values on container create.
+    "settings": {
+        // Integrated terminal
+        "terminal.integrated.profiles.linux": {
+            "zsh": {
+                "path": "/bin/zsh"
+            },
+            "bash": {
+                "path": "/bin/bash"
+            }
+        },
+        "terminal.integrated.defaultProfile.linux": "zsh"
     }
 }

@@ -1,8 +1,10 @@
 FROM pytorch/pytorch:1.13.1-cuda11.6-cudnn8-runtime
 
 COPY ./linux-package-list.txt /tmp/
-RUN apt-get update && \
-    apt-get install -y $(cat /tmp/linux-package-list.txt)
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && apt-get install -y sudo ffmpeg git zsh
+# apt-get from text file fails??
 
 # https://code.visualstudio.com/remote/advancedcontainers/add-nonroot-user
 ARG USERNAME=docker_user
