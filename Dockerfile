@@ -2,7 +2,7 @@ FROM pytorch/pytorch:1.13.1-cuda11.6-cudnn8-runtime
 
 COPY ./linux-package-list.txt /tmp/
 RUN apt-get update \
-    && apt-get install -y sudo ffmpeg git zsh curl
+    && apt-get install -y sudo ffmpeg git zsh curl vim
 # && apt-get upgrade -y \
 # apt-get from text file fails??
 
