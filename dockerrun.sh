@@ -8,4 +8,5 @@ docker run --rm -v "`pwd`:/workspace" \
      -it \
      --entrypoint /bin/bash \
      -p 8888:8888 \
+     --gpus '"device=0"' \
      $IMAGE_NAME
