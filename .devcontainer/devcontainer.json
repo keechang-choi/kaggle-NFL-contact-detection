@@ -16,5 +16,7 @@
             }
         },
         "terminal.integrated.defaultProfile.linux": "zsh"
-    }
+    },
+    "postCreateCommand": "bash .devcontainer/install-dev-tools.sh",
+    "remoteUser": "docker_user"
 }
