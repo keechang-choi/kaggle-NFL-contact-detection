@@ -2,8 +2,8 @@ FROM pytorch/pytorch:1.13.1-cuda11.6-cudnn8-runtime
 
 COPY ./linux-package-list.txt /tmp/
 RUN apt-get update \
-    && apt-get upgrade -y \
-    && apt-get install -y sudo ffmpeg git zsh
+    && apt-get install -y sudo ffmpeg git zsh curl
+# && apt-get upgrade -y \
 # apt-get from text file fails??
 
 # https://code.visualstudio.com/remote/advancedcontainers/add-nonroot-user
@@ -23,6 +23,8 @@ USER $USERNAME
 
 COPY requirements.txt /tmp/
 RUN cd /tmp/ && pip install -r requirements.txt
+# Install oh-my-zsh ("https://ohmyz.sh/")
+RUN sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
 
 ENV PATH="$PATH:~/.local/bin"
 
