@@ -6,7 +6,7 @@ torch
 timm
 albumentations
 matplotlib
-sklearn
+scikit-learn
 notebook
 ipython
 ipykernel

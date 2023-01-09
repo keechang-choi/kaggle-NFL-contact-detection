@@ -1,4 +1,4 @@
 #!/bin/bash
 
-# For Windows
+# for windows
 sudo chown -R docker_user:docker_user .

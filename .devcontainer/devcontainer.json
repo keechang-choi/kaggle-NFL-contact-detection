@@ -5,12 +5,12 @@
         "context": "../"
     },
     "mounts": [
-      "type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/home/docker_user/.ssh",
-      "type=bind,source=${localWorkspaceFolder},target=/workspace"
+        "type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/home/docker_user/.ssh",
+        "type=bind,source=${localWorkspaceFolder},target=/workspace"
     ],
     "runArgs": [
-      "--gpus",
-      "device=0"
+        "--gpus",
+        "device=0"
     ],
     // Set *default* container specific settings.json values on container create.
     "settings": {
@@ -25,6 +25,6 @@
         },
         "terminal.integrated.defaultProfile.linux": "zsh"
     },
-    "postCreateCommand": "bash .devcontainer/install-dev-tools.sh",
+    "postCreateCommand": "bash .devcontainer/post-command.sh",
     "remoteUser": "docker_user"
 }
