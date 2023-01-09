@@ -29,4 +29,4 @@ RUN sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/inst
 ENV PATH="$PATH:~/.local/bin"
 
 WORKDIR /workspace
-COPY . .
+# COPY . .
