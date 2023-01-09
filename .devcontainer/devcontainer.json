@@ -1,0 +1,7 @@
+{
+    "name": "kaggle NFL training container",
+    "build": {
+        "dockerfile": "../Dockerfile",
+        "context": "../"
+    }
+}

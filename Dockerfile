@@ -1,11 +1,8 @@
-# docker pull pytorch/pytorch:1.13.1-cuda11.6-cudnn8-runtime
-
-
 FROM pytorch/pytorch:1.13.1-cuda11.6-cudnn8-runtime
 
-RUN apt-get update
 COPY ./linux-package-list.txt /tmp/
-RUN apt-get install -y $(cat /tmp/linux-package-list.txt)
+RUN apt-get update && \
+    apt-get install -y $(cat /tmp/linux-package-list.txt)
 
 # https://code.visualstudio.com/remote/advancedcontainers/add-nonroot-user
 ARG USERNAME=docker_user

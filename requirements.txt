@@ -8,3 +8,5 @@ albumentations
 matplotlib
 sklearn
 notebook
+ipython
+ipykernel
