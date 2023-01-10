@@ -8,7 +8,8 @@ docker run --rm -v "`pwd`:/workspace" \
      -it \
      --entrypoint /bin/bash \
      -p 8888:8888 \
+     -p 6006:6006 \
      --gpus '"device=0"' \
      --shm-size=4gb \
-     --memory=12g \
      $IMAGE_NAME
+     # --memory=10g \

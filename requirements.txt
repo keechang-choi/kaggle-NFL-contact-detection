@@ -11,4 +11,5 @@ notebook
 ipython
 ipykernel
 pytorch-lightning
+tensorboard
 autopep8
