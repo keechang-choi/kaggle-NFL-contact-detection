@@ -21,14 +21,18 @@ class Model(nn.Module):
             # nn.ReLU(),
             # nn.Dropout(0.2)
         )
-        self.fc = nn.Linear(64+500*2, 1)
+        self.fc_sigmoid = nn.Sequential(
+            nn.Linear(64+500*2, 1),
+            nn.Sigmoid()
+        )
 
     def forward(self, img, feature):
         b, c, h, w = img.shape
         img = img.reshape(b*2, c//2, h, w)
         img = self.backbone(img).reshape(b, -1)
         feature = self.mlp(feature)
-        y = self.fc(torch.cat([img, feature], dim=1))
+        y = self.fc_sigmoid(torch.cat([img, feature], dim=1))
+
         return y
 
 
@@ -40,9 +44,21 @@ class LitCNN(pl.LightningModule):
     def training_step(self, batch, batch_index):
         img, feature, label = batch
         output = self.model(img, feature).squeeze(-1)
-
-        loss = F.cross_entropy(output, label)
+        loss = F.binary_cross_entropy(output, label)
+        self.log("train_loss", loss)
         return loss
+
+    def test_step(self, batch, batch_index):
+        img, feature, label = batch
+        output = self.model(img, feature).squeeze(-1)
+        test_loss = F.binary_cross_entropy(output, label)
+        self.log("test_loss", test_loss)
+
+    def validation_step(self, batch, batch_index):
+        img, feature, label = batch
+        output = self.model(img, feature).squeeze(-1)
+        val_loss = F.binary_cross_entropy(output, label)
+        self.log("val_loss", val_loss)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)

@@ -2,7 +2,7 @@ import pytorch_lightning as pl
 import random
 import pandas as pd
 import numpy as np
-from torch.utils.data import random_split, Dataset, DataLoader
+from torch.utils.data import random_split, Dataset, DataLoader, Subset
 import cv2
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
@@ -10,6 +10,9 @@ import os
 from tqdm import tqdm
 import glob
 import subprocess
+import torch
+import gc
+
 from config import CFG
 
 
@@ -123,6 +126,9 @@ class MyDataModule(pl.LightningDataModule):
             ToTensorV2()
         ])
         self.dataset_test = None
+        self.dataset_train = None
+        self.dataset_valid = None
+        self.dataset_pred = None
 
     def expand_contact_id(self, df):
         """
@@ -186,6 +192,7 @@ class MyDataModule(pl.LightningDataModule):
     def prepare_data(self):
         # 다운로드 및 전처리
 
+        # test 데이터 전처리
         test_helmets = pd.read_csv(os.path.join(
             self.data_dir, "test_baseline_helmets.csv"))
         frame_dir = os.path.join(self.data_dir, "frames")
@@ -198,6 +205,7 @@ class MyDataModule(pl.LightningDataModule):
                 subprocess.call(["ffmpeg", "-i", os.path.join(self.data_dir, f"test/{video}"), "-q:v", "2", "-f", "image2", os.path.join(
                     frame_dir, f"{video}_%04d.jpg"), "-hide_banner", "-loglevel", "error"])
 
+        # train 데이터 전처리
         train_helmets = pd.read_csv(os.path.join(
             self.data_dir, "train_baseline_helmets.csv"))
         os.makedirs(frame_dir, exist_ok=True)
@@ -210,62 +218,105 @@ class MyDataModule(pl.LightningDataModule):
                 subprocess.call(["ffmpeg", "-i", os.path.join(self.data_dir, f"train/{video}"), "-q:v", "2", "-f", "image2", os.path.join(
                     frame_dir, f"{video}_%04d.jpg"), "-hide_banner", "-loglevel", "error"])
 
-    def setup(self, stage: str):
-        # dataset 생성
+    def generate_raw_dataset(self, file_name: str) -> MyDataset:
+        print(f"Generating dataset: {file_name}")
+        df_helmets = pd.read_csv(os.path.join(
+            self.data_dir, f"{file_name}_baseline_helmets.csv"))
+        df_tracking = pd.read_csv(os.path.join(
+            self.data_dir, f"{file_name}_player_tracking.csv"))
+        df_video_metadata = pd.read_csv(os.path.join(
+            self.data_dir, f"{file_name}_video_metadata.csv"))
 
-        test_helmets = pd.read_csv(os.path.join(
-            self.data_dir, "test_baseline_helmets.csv"))
-        test_tracking = pd.read_csv(os.path.join(
-            self.data_dir, "test_player_tracking.csv"))
-        test_video_metadata = pd.read_csv(os.path.join(
-            self.data_dir, "test_video_metadata.csv"))
+        if file_name == "test":
+            label_file_name = "sample_submission.csv"
+        else:
+            label_file_name = "train_labels.csv"
 
         labels = self.expand_contact_id(pd.read_csv(
-            os.path.join(self.data_dir, "sample_submission.csv")))
+            os.path.join(self.data_dir, label_file_name)))
 
         use_cols = [
             'x_position', 'y_position', 'speed', 'distance',
             'direction', 'orientation', 'acceleration', 'sa'
         ]
 
-        test, feature_cols = self.create_features(
-            labels, test_tracking, use_cols=use_cols)
+        df_with_feature, feature_cols = self.create_features(
+            labels, df_tracking, use_cols=use_cols)
 
-        test_filtered = test.query('not distance>2').reset_index(drop=True)
-        test_filtered['frame'] = (
-            test_filtered['step']/10*59.94+5*59.94).astype('int')+1
+        df_filtered = df_with_feature.query(
+            'not distance>2').reset_index(drop=True)
+        df_filtered['frame'] = (
+            df_filtered['step']/10*59.94+5*59.94).astype('int')+1
+
+        # 메모리 이슈
+        del df_with_feature, labels, df_tracking
+        gc.collect()
+
+        print(df_filtered.groupby("contact")["contact"].count())
 
         video2helmets = {}
-        test_helmets_new = test_helmets.set_index('video')
-        for video in tqdm(test_helmets.video.unique()):
-            video2helmets[video] = test_helmets_new.loc[video].reset_index(
+        df_helmets_new = df_helmets.set_index('video')
+        for video in tqdm(df_helmets.video.unique()):
+            video2helmets[video] = df_helmets_new.loc[video].reset_index(
                 drop=True)
 
         video2frames = {}
-        for game_play in tqdm(test_video_metadata.game_play.unique()):
+        for game_play in tqdm(df_video_metadata.game_play.unique()):
             for view in ['Endzone', 'Sideline']:
                 video = game_play + f'_{view}.mp4'
                 video2frames[video] = max(list(map(
                     lambda x: int(x.split('_')[-1].split('.')[0]),
                     glob.glob(os.path.join(self.data_dir, f'frames/{video}*')
                               ))))
-        self.dataset_test = MyDataset(
-            df=test_filtered,
+
+        # 메모리 이슈
+        del df_helmets, df_helmets_new
+        gc.collect()
+
+        dataset = MyDataset(
+            df=df_filtered,
             data_dir=self.data_dir,
             feature_cols=feature_cols,
             video2helmets=video2helmets,
             video2frames=video2frames,
             aug=self.valid_aug,
-            mode='test')
+            mode=file_name)
+
+        return dataset
+
+    def setup(self, stage: str):
+        # dataset 생성
+        # stage 는 fit/validate/test/predict 중 하나임.
+        # train_ 데이터를 다시 train/validation/test로 나누고,
+        # test_ 데이터는 predict에 사용함.
+        if stage == "predict":
+            raw_dataset_test = self.generate_raw_dataset("test")
+            self.dataset_pred = raw_dataset_test
+        elif stage == "fit":
+
+            raw_dataset_train = self.generate_raw_dataset("train")
+
+            # subset for training run check
+            subset_indices = torch.arange(2000)
+            raw_dataset_train = Subset(raw_dataset_train, subset_indices)
+
+            train_set_size = int(len(raw_dataset_train) * 0.8)
+            valid_set_size = int(len(raw_dataset_train) * 0.1)
+            test_set_size = len(raw_dataset_train) - \
+                (train_set_size + valid_set_size)
+
+            seed = torch.Generator().manual_seed(CFG["seed"])
+            self.dataset_train, self.dataset_valid, self.dataset_test = random_split(
+                raw_dataset_train, [train_set_size, valid_set_size, test_set_size], generator=seed)
 
     def train_dataloader(self):
-        return DataLoader(self.dataset_test, batch_size=CFG["batch_size"], num_workers=CFG["num_workers"])
+        return DataLoader(self.dataset_train, batch_size=CFG["batch_size"], num_workers=CFG["num_workers"])
 
     def val_dataloader(self):
-        return DataLoader(self.dataset_test, batch_size=CFG["batch_size"], num_workers=CFG["num_workers"])
+        return DataLoader(self.dataset_valid, batch_size=CFG["batch_size"], num_workers=CFG["num_workers"])
 
     def test_dataloader(self):
         return DataLoader(self.dataset_test, batch_size=CFG["batch_size"], num_workers=CFG["num_workers"])
 
     def predict_dataloader(self):
-        return DataLoader(self.dataset_test, batch_size=CFG["batch_size"], num_workers=CFG["num_workers"])
+        return DataLoader(self.dataset_pred, batch_size=CFG["batch_size"], num_workers=CFG["num_workers"])
