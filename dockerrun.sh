@@ -9,4 +9,5 @@ docker run --rm -v "`pwd`:/workspace" \
      --entrypoint /bin/bash \
      -p 8888:8888 \
      --gpus '"device=0"' \
+     --shm-size=4gb \
      $IMAGE_NAME

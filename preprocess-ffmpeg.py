@@ -28,20 +28,23 @@ pd.set_option('display.max_columns', None)
 
 
 if __name__ == "__main__":
-    test_helmets = pd.read_csv(os.path.join(DATA_PATH, "test_baseline_helmets.csv"))
+    test_helmets = pd.read_csv(os.path.join(
+        DATA_PATH, "test_baseline_helmets.csv"))
     frame_dir = os.path.join(DATA_PATH, "frames")
     os.makedirs(frame_dir, exist_ok=True)
     print(test_helmets.head(10))
-    
+
     print(test_helmets["video"])
     for video in tqdm(test_helmets.video.unique()):
         print(video)
         if os.path.isfile(os.path.join(frame_dir, video+"_0001.jpg")):
             continue
         if "Endzone2" not in video:
-            subprocess.call(["ffmpeg","-i", os.path.join(DATA_PATH, f"test/{video}"), "-q:v", "2", "-f", "image2", os.path.join(frame_dir, f"{video}_%04d.jpg"), "-hide_banner", "-loglevel", "error"])
+            subprocess.call(["ffmpeg", "-i", os.path.join(DATA_PATH, f"test/{video}"), "-q:v", "2", "-f", "image2", os.path.join(
+                frame_dir, f"{video}_%04d.jpg"), "-hide_banner", "-loglevel", "error"])
 
-    train_helmets = pd.read_csv(os.path.join(DATA_PATH, "train_baseline_helmets.csv"))
+    train_helmets = pd.read_csv(os.path.join(
+        DATA_PATH, "train_baseline_helmets.csv"))
     os.makedirs(frame_dir, exist_ok=True)
     print(train_helmets.head(10))
     print(train_helmets["view"].unique())
@@ -50,5 +53,5 @@ if __name__ == "__main__":
             continue
         # Endzone2 가 view 중에 있는데 뭔지 모름 파악 필요.
         if "Endzone2" not in video:
-            subprocess.call(["ffmpeg","-i", os.path.join(DATA_PATH, f"train/{video}"), "-q:v", "2", "-f", "image2", os.path.join(frame_dir, f"{video}_%04d.jpg"), "-hide_banner", "-loglevel", "error"])
- 
+            subprocess.call(["ffmpeg", "-i", os.path.join(DATA_PATH, f"train/{video}"), "-q:v", "2", "-f", "image2", os.path.join(
+                frame_dir, f"{video}_%04d.jpg"), "-hide_banner", "-loglevel", "error"])

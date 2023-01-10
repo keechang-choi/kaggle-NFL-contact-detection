@@ -10,3 +10,5 @@ scikit-learn
 notebook
 ipython
 ipykernel
+pytorch-lightning
+autopep8
