@@ -7,8 +7,8 @@ from pytorch_lightning.loggers import TensorBoardLogger
 import argparse
 
 from config import CFG
-from dataset import MyDataModule
-from model import LitCNN
+from dataset_factory import DataSetFactory
+from lightning_module_factory import LightningModuleFactory
 
 
 def seed_everything(seed):
@@ -36,15 +36,18 @@ if __name__ == "__main__":
     device = torch.device(device_str)
 
     logger = TensorBoardLogger("lightning_logs", name="2.5dcnn")
-
-    data_module = MyDataModule(data_dir="data")
-    if args.load_path == "":
-        model = LitCNN()
-    else:
-        model = LitCNN.load_from_checkpoint(args.load_path)
+    
+    model_name = f"{CFG['model_name']}-{CFG['model_version']}"
+    dataset_params = CFG['dataset_params']
+    model_params = CFG['model_params']
+    data_module = DataSetFactory.get_dataset(name=model_name,
+                                             params=dataset_params)
+    lightning_module = LightningModuleFactory.get_lightning_module(name=model_name,
+                                                                   load_path=args.load_path,
+                                                                   params=model_params)
 
     trainer = pl.Trainer(max_epochs=CFG["epochs"],
                          accelerator="gpu",
                          devices=1 if device_str != "cpu" else None,
                          logger=logger)
-    trainer.fit(model=model, datamodule=data_module)
+    trainer.fit(model=lightning_module, datamodule=data_module)
