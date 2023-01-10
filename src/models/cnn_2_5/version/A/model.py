@@ -6,11 +6,11 @@ import timm
 from config import CFG
 
 
-class Model(nn.Module):
-    def __init__(self):
-        super(Model, self).__init__()
+class CNN25Model(nn.Module):
+    def __init__(self, backbone):
+        super(CNN25Model, self).__init__()
         self.backbone = timm.create_model(
-            CFG['model'], pretrained=False, num_classes=500, in_chans=13)
+            backbone, pretrained=False, num_classes=500, in_chans=13)
         self.mlp = nn.Sequential(
             nn.Linear(18, 64),
             nn.LayerNorm(64),
@@ -36,10 +36,10 @@ class Model(nn.Module):
         return y
 
 
-class LitCNN(pl.LightningModule):
-    def __init__(self):
+class CNN25LightningModule(pl.LightningModule):
+    def __init__(self, backbone):
         super().__init__()
-        self.model = Model()
+        self.model = CNN25Model(backbone)
 
     def training_step(self, batch, batch_index):
         img, feature, label = batch

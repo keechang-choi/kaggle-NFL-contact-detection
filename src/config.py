@@ -1,6 +1,13 @@
 CFG = {
+    'model_name': 'cnn_2_5',
+    'model_version': 'A',
+    'dataset_params': {
+        'data_dir': '../data',
+    },
+    'model_params': {
+        'backbone':'resnet50'
+    },
     'seed': 42,
-    'model': 'resnet50',
     'img_size': 256,
     'epochs': 10,
     'train_bs': 100,

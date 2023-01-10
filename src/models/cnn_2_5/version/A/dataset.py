@@ -16,7 +16,7 @@ import gc
 from config import CFG
 
 
-class MyDataset(Dataset):
+class CNN25Dataset(Dataset):
     def __init__(self, df, data_dir, feature_cols, video2helmets, video2frames, aug, mode='train'):
         self.df = df
         self.data_dir = data_dir
@@ -107,7 +107,7 @@ class MyDataset(Dataset):
         return img, feature, label
 
 
-class MyDataModule(pl.LightningDataModule):
+class CNN25DataModule(pl.LightningDataModule):
     def __init__(self, data_dir: str = "./"):
         super().__init__()
         self.data_dir = data_dir
@@ -218,7 +218,7 @@ class MyDataModule(pl.LightningDataModule):
                 subprocess.call(["ffmpeg", "-i", os.path.join(self.data_dir, f"train/{video}"), "-q:v", "2", "-f", "image2", os.path.join(
                     frame_dir, f"{video}_%04d.jpg"), "-hide_banner", "-loglevel", "error"])
 
-    def generate_raw_dataset(self, file_name: str) -> MyDataset:
+    def generate_raw_dataset(self, file_name: str) -> CNN25Dataset:
         print(f"Generating dataset: {file_name}")
         df_helmets = pd.read_csv(os.path.join(
             self.data_dir, f"{file_name}_baseline_helmets.csv"))
@@ -273,7 +273,7 @@ class MyDataModule(pl.LightningDataModule):
         del df_helmets, df_helmets_new
         gc.collect()
 
-        dataset = MyDataset(
+        dataset = CNN25Dataset(
             df=df_filtered,
             data_dir=self.data_dir,
             feature_cols=feature_cols,
