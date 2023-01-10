@@ -10,4 +10,5 @@ docker run --rm -v "`pwd`:/workspace" \
      -p 8888:8888 \
      --gpus '"device=0"' \
      --shm-size=4gb \
+     --memory=12g \
      $IMAGE_NAME
