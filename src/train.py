@@ -35,8 +35,8 @@ if __name__ == "__main__":
         device_str = "mps"
     device = torch.device(device_str)
 
-    logger = TensorBoardLogger("lightning_logs", name="2.5dcnn")
-    
+    logger = TensorBoardLogger(CFG["logger_dir"], name="2.5dcnn")
+
     model_name = f"{CFG['model_name']}-{CFG['model_version']}"
     dataset_params = CFG['dataset_params']
     model_params = CFG['model_params']

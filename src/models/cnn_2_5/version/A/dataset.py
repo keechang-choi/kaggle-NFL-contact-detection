@@ -297,7 +297,7 @@ class CNN25DataModule(pl.LightningDataModule):
             raw_dataset_train = self.generate_raw_dataset("train")
             print(f"raw_train_size: {len(raw_dataset_train)}")
             # subset for training run check
-            subset_indices = torch.arange(10000)
+            subset_indices = torch.arange(1000)
             raw_dataset_train = Subset(raw_dataset_train, subset_indices)
 
             train_set_size = int(len(raw_dataset_train) * 0.8)
