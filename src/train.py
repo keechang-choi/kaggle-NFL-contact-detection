@@ -7,8 +7,8 @@ from pytorch_lightning.loggers import TensorBoardLogger
 import argparse
 
 from config import CFG
-from dataset_factory import DataSetFactory
-from lightning_module_factory import LightningModuleFactory
+from factory.dataset_factory import DataSetFactory
+from factory.lightning_module_factory import LightningModuleFactory
 
 
 def seed_everything(seed):
