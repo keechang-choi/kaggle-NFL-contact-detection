@@ -3,6 +3,7 @@ CFG = {
     'model_version': 'A',
     'dataset_params': {
         'data_dir': './data',
+        "tmp_data_dir": "./data"
     },
     'model_params': {
         'backbone': 'resnet50'
