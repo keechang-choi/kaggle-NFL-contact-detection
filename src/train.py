@@ -36,7 +36,8 @@ if __name__ == "__main__":
         device_str = "mps"
     device = torch.device(device_str)
 
-    logger_path = os.path.abspath(os.path.join(os.path.dirname(__file__), CFG["logger_dir"]))
+    logger_path = os.path.abspath(os.path.join(
+        os.path.dirname(__file__), CFG["logger_dir"]))
     os.makedirs(logger_path, exist_ok=True)
     logger = TensorBoardLogger(logger_path, name=CFG["model_name"])
 
@@ -49,8 +50,10 @@ if __name__ == "__main__":
                                                                    load_path=args.load_path,
                                                                    params=model_params)
 
+    # NOTE: cuda, mps, cpu for accelerator.
+    # https://pytorch-lightning.readthedocs.io/en/stable/accelerators/mps_basic.html
     trainer = pl.Trainer(max_epochs=CFG["epochs"],
-                         accelerator="gpu",
+                         accelerator=device_str,
                          devices=1 if device_str != "cpu" else None,
                          logger=logger,
                          callbacks=[EarlyStopping(monitor="val_loss", mode="min", patience=3)])

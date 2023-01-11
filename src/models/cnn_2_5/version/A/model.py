@@ -63,3 +63,8 @@ class CNN25LightningModule(pl.LightningModule):
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
         return optimizer
+
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+        img, feature, label = batch
+        output = self.model(img, feature).squeeze(-1)
+        return output
