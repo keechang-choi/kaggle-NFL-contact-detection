@@ -198,9 +198,19 @@ class CNN25DataModule(pl.LightningDataModule):
         os.makedirs(frame_dir, exist_ok=True)
 
     def generate_raw_dataset(self, file_name: str) -> CNN25Dataset:
-        print(f"Generating dataset: {file_name}")
+        # ffmpeg 데이터 전처리
+        frame_dir = os.path.join(self.tmp_data_dir, "frames")
         df_helmets = pd.read_csv(os.path.join(
             self.data_dir, f"{file_name}_baseline_helmets.csv"))
+        print(f"{file_name} helmets: {len(df_helmets)}")
+        for video in tqdm(df_helmets.video.unique()):
+            if os.path.isfile(os.path.join(frame_dir, video+"_0001.jpg")):
+                continue
+            if "Endzone2" not in video:
+                subprocess.call(["ffmpeg", "-i", os.path.join(self.data_dir, f"{file_name}/{video}"), "-q:v", "2", "-f", "image2", os.path.join(
+                    frame_dir, f"{video}_%04d.jpg"), "-hide_banner", "-loglevel", "error"])
+
+        print(f"Generating dataset: {file_name}")
         df_tracking = pd.read_csv(os.path.join(
             self.data_dir, f"{file_name}_player_tracking.csv"))
         df_video_metadata = pd.read_csv(os.path.join(
@@ -245,7 +255,7 @@ class CNN25DataModule(pl.LightningDataModule):
                 video = game_play + f'_{view}.mp4'
                 video2frames[video] = max(list(map(
                     lambda x: int(x.split('_')[-1].split('.')[0]),
-                    glob.glob(os.path.join(self.data_dir, f'frames/{video}*')
+                    glob.glob(os.path.join(self.tmp_data_dir, f'frames/{video}*')
                               ))))
 
         # 메모리 이슈
@@ -269,37 +279,10 @@ class CNN25DataModule(pl.LightningDataModule):
         # stage 는 fit/validate/test/predict 중 하나임.
         # train_ 데이터를 다시 train/validation/test로 나누고,
         # test_ 데이터는 predict에 사용함.
-        frame_dir = os.path.join(self.tmp_data_dir, "frames")
-
         if stage == "predict":
-
-            # test 데이터 전처리
-            test_helmets = pd.read_csv(os.path.join(
-                self.data_dir, "test_baseline_helmets.csv"))
-            print(f"test videos: {len(test_helmets)}")
-            for video in tqdm(test_helmets.video.unique()):
-                if os.path.isfile(os.path.join(frame_dir, video+"_0001.jpg")):
-                    continue
-                if "Endzone2" not in video:
-                    subprocess.call(["ffmpeg", "-i", os.path.join(self.data_dir, f"test/{video}"), "-q:v", "2", "-f", "image2", os.path.join(
-                        frame_dir, f"{video}_%04d.jpg"), "-hide_banner", "-loglevel", "error"])
-
             raw_dataset_test = self.generate_raw_dataset("test")
             self.dataset_pred = raw_dataset_test
         elif stage == "fit":
-
-            # train 데이터 전처리
-            train_helmets = pd.read_csv(os.path.join(
-                self.data_dir, "train_baseline_helmets.csv"))
-            print(f"train videos: {len(train_helmets)}")
-            for video in tqdm(train_helmets.video.unique()):
-                if os.path.isfile(os.path.join(frame_dir, video+"_0001.jpg")):
-                    continue
-                # Endzone2 가 view 중에 있는데 뭔지 모름 파악 필요.
-                if "Endzone2" not in video:
-                    subprocess.call(["ffmpeg", "-i", os.path.join(self.data_dir, f"train/{video}"), "-q:v", "2", "-f", "image2", os.path.join(
-                        frame_dir, f"{video}_%04d.jpg"), "-hide_banner", "-loglevel", "error"])
-
             raw_dataset_train = self.generate_raw_dataset("train")
             print(f"raw_train_size: {len(raw_dataset_train)}")
             # subset for training run check
