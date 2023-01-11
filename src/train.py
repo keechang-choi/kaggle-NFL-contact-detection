@@ -5,6 +5,7 @@ import numpy as np
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger
 import argparse
+from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
 from config import CFG
 from factory.dataset_factory import DataSetFactory
@@ -35,7 +36,9 @@ if __name__ == "__main__":
         device_str = "mps"
     device = torch.device(device_str)
 
-    logger = TensorBoardLogger(CFG["logger_dir"], name="2.5dcnn")
+    logger_path = os.path.abspath(os.path.join(os.path.dirname(__file__), CFG["logger_dir"]))
+    os.makedirs(logger_path, exist_ok=True)
+    logger = TensorBoardLogger(logger_path, name=CFG["model_name"])
 
     model_name = f"{CFG['model_name']}-{CFG['model_version']}"
     dataset_params = CFG['dataset_params']
@@ -49,5 +52,6 @@ if __name__ == "__main__":
     trainer = pl.Trainer(max_epochs=CFG["epochs"],
                          accelerator="gpu",
                          devices=1 if device_str != "cpu" else None,
-                         logger=logger)
+                         logger=logger,
+                         callbacks=[EarlyStopping(monitor="val_loss", mode="min", patience=3)])
     trainer.fit(model=lightning_module, datamodule=data_module)
