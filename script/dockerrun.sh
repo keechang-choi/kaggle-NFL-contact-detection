@@ -1,7 +1,8 @@
 #!/bin/sh
 
 IMAGE_NAME="kaggle/nfl:0.0.1"
-pushd ..
+
+cd ..
 docker run --rm -v "`pwd`:/workspace" \
      -v ~/.ssh:/home/docker_user/.ssh:ro \
      -w /workspace \
@@ -13,4 +14,4 @@ docker run --rm -v "`pwd`:/workspace" \
      --shm-size=4gb \
      $IMAGE_NAME
      # --memory=10g \
-popd
+cd -
