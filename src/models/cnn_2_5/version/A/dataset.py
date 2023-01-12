@@ -19,11 +19,11 @@ from config import CFG
 
 
 class CNN25Dataset(Dataset):
-    def __init__(self, df, data_dir, tmp_data_dir, feature_cols, video2helmets, video2frames, aug, mode='train'):
+    def __init__(self, df, data_dir, preprocess_result_dir, feature_cols, video2helmets, video2frames, aug, mode='train'):
         self.df = df
         self.data_dir = data_dir
         # kaggle read only dir 문제로, 임시 생성 dir 별도 지정.
-        self.tmp_data_dir = tmp_data_dir
+        self.preprocess_result_dir = preprocess_result_dir
         self.frame = df.frame.values
         self.feature = df[feature_cols].fillna(-1).values
         self.players = df[['nfl_player_id_1', 'nfl_player_id_2']].values
@@ -33,6 +33,8 @@ class CNN25Dataset(Dataset):
 
         self.video2helmets = video2helmets
         self.video2frames = video2frames
+        
+        os.makedirs(self.preprocess_result_dir, exist_ok=True)
 
     def __len__(self):
         return len(self.df)
@@ -92,7 +94,7 @@ class CNN25Dataset(Dataset):
 
                 if flag == 1 and f <= self.video2frames[video]:
                     img = cv2.imread(
-                        os.path.join(self.tmp_data_dir, f"frames/{video}_{f:04d}.jpg"), 0)
+                        os.path.join(self.preprocess_result_dir, f"frames/{video}_{f:04d}.jpg"), 0)
 
                     x, w, y, h = bboxes[i]
 
@@ -113,10 +115,10 @@ class CNN25Dataset(Dataset):
 
 
 class CNN25DataModule(pl.LightningDataModule):
-    def __init__(self, data_dir: str = "./", tmp_data_dir: str = "./"):
+    def __init__(self, data_dir: str = "./", preprocess_result_dir: str = "./"):
         super().__init__()
         self.data_dir = data_dir
-        self.tmp_data_dir = tmp_data_dir
+        self.preprocess_result_dir = preprocess_result_dir
 
         self.train_aug = A.Compose([
             A.HorizontalFlip(p=0.5),
@@ -209,8 +211,6 @@ class CNN25DataModule(pl.LightningDataModule):
         # 다운로드 및 전처리
         # NOTE: single core로 실행됨.
         # https://pytorch-lightning.readthedocs.io/en/stable/data/datamodule.html
-        frame_dir = os.path.join(self.tmp_data_dir, "frames")
-        os.makedirs(frame_dir, exist_ok=True)
         # NOTE: state 저장하지 말고 disk에 저장해야함.
         self.preprocess_dataset()
 
@@ -218,90 +218,115 @@ class CNN25DataModule(pl.LightningDataModule):
         # 데이터 전처리 후, 파일로 저장해놓는다.
         # fit,validate,test 공통으로 한번, predict 한번씩만 실행되면 된다.
         is_prediction = CFG["is_prediction"]
-        print(f"Preprocess ffmpeg. is_prediction: {is_prediction}")
+        run_type = "test" if is_prediction else "train"
+        frame_dir = os.path.join(self.preprocess_result_dir, "frames")
+        processed_meta_dir = os.path.join(self.preprocess_result_dir, run_type)
+        
+        os.makedirs(frame_dir, exist_ok=True)
+        os.makedirs(processed_meta_dir, exist_ok=True)
+            
+        print("====== [Preprocess] ======")
+        print(f"- is_prediction: {is_prediction}")
+        print(f"- run_type: {run_type}")
 
-        if is_prediction:
-            file_name = "test"
-        else:
-            file_name = "train"
-
-        # ffmpeg 데이터 전처리
-        frame_dir = os.path.join(self.tmp_data_dir, "frames")
+        print("------ [Loading Metadata] ------")
         df_helmets = pd.read_csv(os.path.join(
-            self.data_dir, f"{file_name}_baseline_helmets.csv"))
-        print(f"-- ffmpeg frames {file_name}")
+            self.data_dir, f"{run_type}_baseline_helmets.csv"))
+        df_video_metadata = pd.read_csv(os.path.join(
+            self.data_dir, f"{run_type}_video_metadata.csv"))
+        
+        print("------ [ffmpeg] ------")
+        print(f"ffmpeg frames {run_type}")
         for video in tqdm(df_helmets.video.unique()):
             if os.path.isfile(os.path.join(frame_dir, video+"_0001.jpg")):
                 continue
             if "Endzone2" not in video:
-                subprocess.call(["ffmpeg", "-i", os.path.join(self.data_dir, f"{file_name}/{video}"), "-q:v", "2", "-f", "image2", os.path.join(
+                subprocess.call(["ffmpeg", "-i", os.path.join(self.data_dir, f"{run_type}/{video}"), "-q:v", "2", "-f", "image2", os.path.join(
                     frame_dir, f"{video}_%04d.jpg"), "-hide_banner", "-loglevel", "error"])
 
-        df_video_metadata = pd.read_csv(os.path.join(
-            self.data_dir, f"{file_name}_video_metadata.csv"))
-
-        print(
-            f"-- video mapping {file_name}: {len(df_helmets.video.unique())}")
-        video2helmets = {}
-        df_helmets_new = df_helmets.set_index('video')
-        for video in tqdm(df_helmets.video.unique()):
-            video2helmets[video] = df_helmets_new.loc[video].reset_index(
-                drop=True)
-
-        video2frames = {}
-        for game_play in tqdm(df_video_metadata.game_play.unique()):
-            for view in ['Endzone', 'Sideline']:
-                video = game_play + f'_{view}.mp4'
-                video2frames[video] = max(list(map(
-                    lambda x: int(x.split('_')[-1].split('.')[0]),
-                    glob.glob(os.path.join(self.tmp_data_dir, f'frames/{video}*')
-                              ))))
-        # 메모리 이슈
-        del df_helmets, df_helmets_new
-        gc.collect()
-
-        print(f"-- Generating dataframe from file : {file_name}")
-        df_tracking = pd.read_csv(os.path.join(
-            self.data_dir, f"{file_name}_player_tracking.csv"))
-
-        if file_name == "test":
-            label_file_name = "sample_submission.csv"
+        print("------ [Mapping metadata] ------")
+        if not os.path.exists(os.path.join(processed_meta_dir, "video2helmets.pickle")):
+            print(f"Mapping video2helmets [size: {len(df_helmets.video.unique())}]")
+            video2helmets = {}
+            df_helmets_new = df_helmets.set_index('video')
+            for video in tqdm(df_helmets.video.unique()):
+                video2helmets[video] = df_helmets_new.loc[video].reset_index(
+                    drop=True)
+            with open(os.path.join(processed_meta_dir, "video2helmets.pickle"), "wb") as f:
+                pickle.dump(video2helmets, f)
+            # 메모리 이슈
+            del df_helmets, df_helmets_new
         else:
-            label_file_name = "train_labels.csv"
-
-        labels = self.expand_contact_id(pd.read_csv(
-            os.path.join(self.data_dir, label_file_name)))
-
-        df_with_feature, _ = self.create_features(
-            labels, df_tracking, use_cols=self.use_cols)
-
-        df_filtered = df_with_feature.query(
-            'not distance>2').reset_index(drop=True)
-        df_filtered['frame'] = (
-            df_filtered['step']/10*59.94+5*59.94).astype('int')+1
-
-        # 메모리 이슈
-        del df_with_feature, labels, df_tracking
+            print(f"video2helemts already exists.. skip")
+        
+        if not os.path.exists(os.path.join(processed_meta_dir, "video2frames.pickle")):
+            print(f"-- Mapping video2frames: [size: {len(df_video_metadata.game_play.unique())}]")
+            video2frames = {}
+            for game_play in tqdm(df_video_metadata.game_play.unique()):
+                for view in ['Endzone', 'Sideline']:
+                    video = game_play + f'_{view}.mp4'
+                    video2frames[video] = max(list(map(
+                        lambda x: int(x.split('_')[-1].split('.')[0]),
+                        glob.glob(os.path.join(frame_dir, f'{video}*')
+                                ))))
+                with open(os.path.join(processed_meta_dir, "video2frames.pickle"), "wb") as f:
+                    pickle.dump(video2frames, f)
+            # 메모리 이슈
+            del video2frames
+        else:
+            print(f"video2frames already exists.. skip")
+        
         gc.collect()
 
-        # save preprocessed files to writable dir.
-        df_filtered.to_csv(os.path.join(self.tmp_data_dir, "df_filtered.csv"))
-        with open(os.path.join(self.tmp_data_dir, "video2helmets.pickle"), "wb") as f:
-            pickle.dump(video2helmets, f)
-        with open(os.path.join(self.tmp_data_dir, "video2frames.pickle"), "wb") as f:
-            pickle.dump(video2frames, f)
+        print(f"------ [Preprocess helmet sensor data] ------")
+        if not os.path.exists(os.path.join(self.preprocess_result_dir, run_type, "df_filtered.csv")):
+            df_tracking = pd.read_csv(os.path.join(
+                self.data_dir, f"{run_type}_player_tracking.csv"))
+
+            if is_prediction:
+                label_file_name = "sample_submission.csv"
+            else:
+                label_file_name = "train_labels.csv"
+
+            print(f"Exapnd contact id")
+            labels = self.expand_contact_id(pd.read_csv(
+                os.path.join(self.data_dir, label_file_name)))
+            print(f"Create features")
+            df_with_feature, _ = self.create_features(
+                labels, df_tracking, use_cols=self.use_cols)
+            df_filtered = df_with_feature.query(
+                'not distance>2').reset_index(drop=True)
+            df_filtered['frame'] = (
+                df_filtered['step']/10*59.94+5*59.94).astype('int')+1
+
+            # 메모리 이슈
+            del df_with_feature, labels, df_tracking
+            gc.collect()
+
+            # save preprocessed files to writable dir.
+            df_filtered.to_csv(os.path.join(self.preprocess_result_dir, run_type, "df_filtered.csv"))
+        else:
+            print("df_filtered already exists.. skip")
 
     def generate_dataset(self, stage: str) -> CNN25Dataset:
         # 학습 데이터 split을 수행한다.
+        
+        print(f"====== Generating dataset  ======")
+        print(f"- stage: {stage}")
+        
+        if stage == "test" or stage == "predict":
+            run_type = "test"
+        else:
+            run_type = "train"
+            
+        processed_meta_dir = os.path.join(self.preprocess_result_dir, run_type)
 
-        print(f"Generating dataset: {stage}")
-
+        print(f"------ [Load metadata] ------")
         df_filtered = pd.read_csv(os.path.join(
-            self.tmp_data_dir, "df_filtered.csv"))
-        feature_cols = self.feature_cols
-        with open(os.path.join(self.tmp_data_dir, "video2helmets.pickle"), "rb") as f:
+            processed_meta_dir, f"df_filtered.csv"))
+        with open(os.path.join(processed_meta_dir, "video2helmets.pickle"), "rb") as f:
             video2helmets = pickle.load(f)
-        with open(os.path.join(self.tmp_data_dir, "video2frames.pickle"), "rb") as f:
+        with open(os.path.join(processed_meta_dir, "video2frames.pickle"), "rb") as f:
             video2frames = pickle.load(f)
 
         if stage in ["fit", "validate", "test"]:
@@ -343,8 +368,8 @@ class CNN25DataModule(pl.LightningDataModule):
         dataset = CNN25Dataset(
             df=df_filtered_dataset,
             data_dir=self.data_dir,
-            tmp_data_dir=self.tmp_data_dir,
-            feature_cols=feature_cols,
+            preprocess_result_dir=self.preprocess_result_dir,
+            feature_cols=self.feature_cols,
             video2helmets=video2helmets,
             video2frames=video2frames,
             aug=self.valid_aug,
