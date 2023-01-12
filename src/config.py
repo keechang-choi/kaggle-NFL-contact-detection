@@ -8,6 +8,7 @@ CFG = {
     'model_params': {
         'backbone': 'resnet50'
     },
+    "num_train_video": 40,
     'seed': 42,
     'img_size': 256,
     'epochs': 20,
@@ -18,5 +19,6 @@ CFG = {
     'num_workers': 8,
     "batch_size": 24,
     "logger_dir": "../lightning_logs",
-    "threshold": 0.29
+    "threshold": 0.29,
+    "is_prediction": False
 }
