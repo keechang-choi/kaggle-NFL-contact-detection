@@ -364,11 +364,8 @@ class CNN25DataModule(pl.LightningDataModule):
         if stage == "fit":
             self.dataset_train = self.generate_dataset("fit")
             print(f"{stage}_dataset_size: {len(self.dataset_train)}")
-            # 이거 좀 이상함.
             self.dataset_valid = self.generate_dataset("validate")
             print(f"{stage}_dataset_size: {len(self.dataset_valid)}")
-            self.dataset_test = self.generate_dataset("test")
-            print(f"{stage}_dataset_size: {len(self.dataset_test)}")
         elif stage == "validate":
             self.dataset_valid = self.generate_dataset("validate")
             print(f"{stage}_dataset_size: {len(self.dataset_valid)}")
