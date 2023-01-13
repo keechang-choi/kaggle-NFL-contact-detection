@@ -288,7 +288,7 @@ class CNN25DataModule(pl.LightningDataModule):
             else:
                 label_file_name = "train_labels.csv"
 
-            print(f"Exapnd contact id")
+            print(f"Expand contact id")
             labels = self.expand_contact_id(pd.read_csv(
                 os.path.join(self.data_dir, label_file_name)))
             print(f"Create features")
@@ -385,21 +385,21 @@ class CNN25DataModule(pl.LightningDataModule):
 
         # https://pytorch-lightning.readthedocs.io/en/stable/data/datamodule.html
         # 데이터셋 생성
-
+        print("------ [Setup dataset] ------")
         if stage == "fit":
             self.dataset_train = self.generate_dataset("fit")
-            print(f"{stage}_dataset_size: {len(self.dataset_train)}")
+            print(f"- fit_dataset_size: {len(self.dataset_train)}")
             self.dataset_valid = self.generate_dataset("validate")
-            print(f"{stage}_dataset_size: {len(self.dataset_valid)}")
+            print(f"- validate_dataset_size: {len(self.dataset_valid)}")
         elif stage == "validate":
             self.dataset_valid = self.generate_dataset("validate")
-            print(f"{stage}_dataset_size: {len(self.dataset_valid)}")
+            print(f"- {stage}_dataset_size: {len(self.dataset_valid)}")
         elif stage == "test":
             self.dataset_test = self.generate_dataset("test")
-            print(f"{stage}_dataset_size: {len(self.dataset_test)}")
+            print(f"- {stage}_dataset_size: {len(self.dataset_test)}")
         elif stage == "predict":
             self.dataset_pred = self.generate_dataset("predict")
-            print(f"{stage}_dataset_size: {len(self.dataset_pred)}")
+            print(f"- {stage}_dataset_size: {len(self.dataset_pred)}")
         else:
             raise TypeError("stage error.")
 
