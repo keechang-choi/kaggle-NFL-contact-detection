@@ -4,6 +4,7 @@ from torch import nn
 from torch.nn import functional as F
 import timm
 from config import CFG
+import torchmetrics
 
 
 class CNN25Model(nn.Module):
@@ -41,6 +42,9 @@ class CNN25LightningModule(pl.LightningModule):
         super().__init__()
         self.model = CNN25Model(backbone)
 
+        self.valid_acc = torchmetrics.Accuracy(task='binary')
+        self.test_acc = torchmetrics.Accuracy(task='binary')
+
     def training_step(self, batch, batch_index):
         img, feature, label = batch
         output = self.model(img, feature).squeeze(-1)
@@ -48,17 +52,31 @@ class CNN25LightningModule(pl.LightningModule):
         self.log("train_loss", loss)
         return loss
 
+    def validation_step(self, batch, batch_index):
+        img, feature, label = batch
+        output = self.model(img, feature).squeeze(-1)
+        val_loss = F.binary_cross_entropy(output, label)
+        self.log("val_loss", val_loss)
+
+        self.valid_acc(output, label)
+        self.log('valid_acc_step', self.valid_acc)
+
+    def validation_epoch_end(self, outs):
+        # log epoch metric
+        self.log('valid_acc_epoch', self.valid_acc)
+
     def test_step(self, batch, batch_index):
         img, feature, label = batch
         output = self.model(img, feature).squeeze(-1)
         test_loss = F.binary_cross_entropy(output, label)
         self.log("test_loss", test_loss)
 
-    def validation_step(self, batch, batch_index):
-        img, feature, label = batch
-        output = self.model(img, feature).squeeze(-1)
-        val_loss = F.binary_cross_entropy(output, label)
-        self.log("val_loss", val_loss)
+        self.test_acc(output, label)
+        self.log('test_acc_step', self.test_acc)
+
+    def test_epoch_end(self, outs):
+        # log epoch metric
+        self.log('test_acc_epoch', self.test_acc)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)

@@ -12,16 +12,18 @@ import glob
 import subprocess
 import torch
 import gc
+from typing import Tuple, List, Optional
+import pickle
 
 from config import CFG
 
 
 class CNN25Dataset(Dataset):
-    def __init__(self, df, data_dir, tmp_data_dir, feature_cols, video2helmets, video2frames, aug, mode='train'):
+    def __init__(self, df, data_dir, preprocess_result_dir, feature_cols, video2helmets, video2frames, aug, mode='train'):
         self.df = df
         self.data_dir = data_dir
         # kaggle read only dir 문제로, 임시 생성 dir 별도 지정.
-        self.tmp_data_dir = tmp_data_dir
+        self.preprocess_result_dir = preprocess_result_dir
         self.frame = df.frame.values
         self.feature = df[feature_cols].fillna(-1).values
         self.players = df[['nfl_player_id_1', 'nfl_player_id_2']].values
@@ -31,6 +33,8 @@ class CNN25Dataset(Dataset):
 
         self.video2helmets = video2helmets
         self.video2frames = video2frames
+        
+        os.makedirs(self.preprocess_result_dir, exist_ok=True)
 
     def __len__(self):
         return len(self.df)
@@ -43,7 +47,8 @@ class CNN25Dataset(Dataset):
         window = 24
         frame = self.frame[idx]
 
-        if self.mode == 'train':
+        # TODO: 이 부분 의미 잘 모르겠음. (기존코드)
+        if self.mode in ["fit", "validate", "test"]:
             frame = frame + random.randint(-6, 6)
 
         players = []
@@ -89,7 +94,7 @@ class CNN25Dataset(Dataset):
 
                 if flag == 1 and f <= self.video2frames[video]:
                     img = cv2.imread(
-                        os.path.join(self.tmp_data_dir, f"frames/{video}_{f:04d}.jpg"), 0)
+                        os.path.join(self.preprocess_result_dir, f"frames/{video}_{f:04d}.jpg"), 0)
 
                     x, w, y, h = bboxes[i]
 
@@ -110,10 +115,10 @@ class CNN25Dataset(Dataset):
 
 
 class CNN25DataModule(pl.LightningDataModule):
-    def __init__(self, data_dir: str = "./", tmp_data_dir: str = "./"):
+    def __init__(self, data_dir: str = "./", preprocess_result_dir: str = "./"):
         super().__init__()
         self.data_dir = data_dir
-        self.tmp_data_dir = tmp_data_dir
+        self.preprocess_result_dir = preprocess_result_dir
 
         self.train_aug = A.Compose([
             A.HorizontalFlip(p=0.5),
@@ -128,6 +133,16 @@ class CNN25DataModule(pl.LightningDataModule):
             A.Normalize(mean=[0.], std=[1.]),
             ToTensorV2()
         ])
+        self.use_cols = [
+            'x_position', 'y_position', 'speed', 'distance',
+            'direction', 'orientation', 'acceleration', 'sa'
+        ]
+        # TODO: 이 부분 hard-coding 된 것 개선.
+        self.feature_cols: List[str] = ["distance", "G_flug"]
+        for col in self.use_cols:
+            self.feature_cols.append(col + "_1")
+            self.feature_cols.append(col + "_2")
+
         self.dataset_test = None
         self.dataset_train = None
         self.dataset_valid = None
@@ -194,83 +209,171 @@ class CNN25DataModule(pl.LightningDataModule):
 
     def prepare_data(self):
         # 다운로드 및 전처리
-        frame_dir = os.path.join(self.tmp_data_dir, "frames")
-        os.makedirs(frame_dir, exist_ok=True)
+        # NOTE: single core로 실행됨.
+        # https://pytorch-lightning.readthedocs.io/en/stable/data/datamodule.html
+        # NOTE: state 저장하지 말고 disk에 저장해야함.
+        self.preprocess_dataset()
 
-    def generate_raw_dataset(self, file_name: str) -> CNN25Dataset:
-        # ffmpeg 데이터 전처리
-        frame_dir = os.path.join(self.tmp_data_dir, "frames")
+    def preprocess_dataset(self):
+        # 데이터 전처리 후, 파일로 저장해놓는다.
+        # fit,validate,test 공통으로 한번, predict 한번씩만 실행되면 된다.
+        is_prediction = CFG["is_prediction"]
+        run_type = "test" if is_prediction else "train"
+        frame_dir = os.path.join(self.preprocess_result_dir, "frames")
+        processed_meta_dir = os.path.join(self.preprocess_result_dir, run_type)
+        
+        os.makedirs(frame_dir, exist_ok=True)
+        os.makedirs(processed_meta_dir, exist_ok=True)
+            
+        print("====== [Preprocess] ======")
+        print(f"- is_prediction: {is_prediction}")
+        print(f"- run_type: {run_type}")
+
+        print("------ [Loading Metadata] ------")
         df_helmets = pd.read_csv(os.path.join(
-            self.data_dir, f"{file_name}_baseline_helmets.csv"))
-        print(f"{file_name} helmets: {len(df_helmets)}")
+            self.data_dir, f"{run_type}_baseline_helmets.csv"))
+        df_video_metadata = pd.read_csv(os.path.join(
+            self.data_dir, f"{run_type}_video_metadata.csv"))
+        
+        print("------ [ffmpeg] ------")
+        print(f"ffmpeg frames {run_type}")
         for video in tqdm(df_helmets.video.unique()):
             if os.path.isfile(os.path.join(frame_dir, video+"_0001.jpg")):
                 continue
             if "Endzone2" not in video:
-                subprocess.call(["ffmpeg", "-i", os.path.join(self.data_dir, f"{file_name}/{video}"), "-q:v", "2", "-f", "image2", os.path.join(
+                subprocess.call(["ffmpeg", "-i", os.path.join(self.data_dir, f"{run_type}/{video}"), "-q:v", "2", "-f", "image2", os.path.join(
                     frame_dir, f"{video}_%04d.jpg"), "-hide_banner", "-loglevel", "error"])
 
-        print(f"Generating dataset: {file_name}")
-        df_tracking = pd.read_csv(os.path.join(
-            self.data_dir, f"{file_name}_player_tracking.csv"))
-        df_video_metadata = pd.read_csv(os.path.join(
-            self.data_dir, f"{file_name}_video_metadata.csv"))
-
-        if file_name == "test":
-            label_file_name = "sample_submission.csv"
+        print("------ [Mapping metadata] ------")
+        if not os.path.exists(os.path.join(processed_meta_dir, "video2helmets.pickle")):
+            print(f"Mapping video2helmets [size: {len(df_helmets.video.unique())}]")
+            video2helmets = {}
+            df_helmets_new = df_helmets.set_index('video')
+            for video in tqdm(df_helmets.video.unique()):
+                video2helmets[video] = df_helmets_new.loc[video].reset_index(
+                    drop=True)
+            with open(os.path.join(processed_meta_dir, "video2helmets.pickle"), "wb") as f:
+                pickle.dump(video2helmets, f)
+            # 메모리 이슈
+            del df_helmets, df_helmets_new
         else:
-            label_file_name = "train_labels.csv"
-
-        labels = self.expand_contact_id(pd.read_csv(
-            os.path.join(self.data_dir, label_file_name)))
-
-        use_cols = [
-            'x_position', 'y_position', 'speed', 'distance',
-            'direction', 'orientation', 'acceleration', 'sa'
-        ]
-
-        df_with_feature, feature_cols = self.create_features(
-            labels, df_tracking, use_cols=use_cols)
-
-        df_filtered = df_with_feature.query(
-            'not distance>2').reset_index(drop=True)
-        df_filtered['frame'] = (
-            df_filtered['step']/10*59.94+5*59.94).astype('int')+1
-
-        # 메모리 이슈
-        del df_with_feature, labels, df_tracking
+            print(f"video2helemts already exists.. skip")
+        
+        if not os.path.exists(os.path.join(processed_meta_dir, "video2frames.pickle")):
+            print(f"-- Mapping video2frames: [size: {len(df_video_metadata.game_play.unique())}]")
+            video2frames = {}
+            for game_play in tqdm(df_video_metadata.game_play.unique()):
+                for view in ['Endzone', 'Sideline']:
+                    video = game_play + f'_{view}.mp4'
+                    video2frames[video] = max(list(map(
+                        lambda x: int(x.split('_')[-1].split('.')[0]),
+                        glob.glob(os.path.join(frame_dir, f'{video}*')
+                                ))))
+                with open(os.path.join(processed_meta_dir, "video2frames.pickle"), "wb") as f:
+                    pickle.dump(video2frames, f)
+            # 메모리 이슈
+            del video2frames
+        else:
+            print(f"video2frames already exists.. skip")
+        
         gc.collect()
 
-        print(df_filtered.groupby("contact")["contact"].count())
+        print(f"------ [Preprocess helmet sensor data] ------")
+        if not os.path.exists(os.path.join(self.preprocess_result_dir, run_type, "df_filtered.csv")):
+            df_tracking = pd.read_csv(os.path.join(
+                self.data_dir, f"{run_type}_player_tracking.csv"))
 
-        video2helmets = {}
-        df_helmets_new = df_helmets.set_index('video')
-        for video in tqdm(df_helmets.video.unique()):
-            video2helmets[video] = df_helmets_new.loc[video].reset_index(
-                drop=True)
+            if is_prediction:
+                label_file_name = "sample_submission.csv"
+            else:
+                label_file_name = "train_labels.csv"
 
-        video2frames = {}
-        for game_play in tqdm(df_video_metadata.game_play.unique()):
-            for view in ['Endzone', 'Sideline']:
-                video = game_play + f'_{view}.mp4'
-                video2frames[video] = max(list(map(
-                    lambda x: int(x.split('_')[-1].split('.')[0]),
-                    glob.glob(os.path.join(self.tmp_data_dir, f'frames/{video}*')
-                              ))))
+            print(f"Expand contact id")
+            labels = self.expand_contact_id(pd.read_csv(
+                os.path.join(self.data_dir, label_file_name)))
+            print(f"Create features")
+            df_with_feature, _ = self.create_features(
+                labels, df_tracking, use_cols=self.use_cols)
+            df_filtered = df_with_feature.query(
+                'not distance>2').reset_index(drop=True)
+            df_filtered['frame'] = (
+                df_filtered['step']/10*59.94+5*59.94).astype('int')+1
 
-        # 메모리 이슈
-        del df_helmets, df_helmets_new
-        gc.collect()
+            # 메모리 이슈
+            del df_with_feature, labels, df_tracking
+            gc.collect()
+
+            # save preprocessed files to writable dir.
+            df_filtered.to_csv(os.path.join(self.preprocess_result_dir, run_type, "df_filtered.csv"))
+        else:
+            print("df_filtered already exists.. skip")
+
+    def generate_dataset(self, stage: str) -> CNN25Dataset:
+        # 학습 데이터 split을 수행한다.
+        
+        print(f"====== Generating dataset  ======")
+        print(f"- stage: {stage}")
+        
+        if stage == "test" or stage == "predict":
+            run_type = "test"
+        else:
+            run_type = "train"
+            
+        processed_meta_dir = os.path.join(self.preprocess_result_dir, run_type)
+
+        print(f"------ [Load metadata] ------")
+        df_filtered = pd.read_csv(os.path.join(
+            processed_meta_dir, f"df_filtered.csv"))
+        with open(os.path.join(processed_meta_dir, "video2helmets.pickle"), "rb") as f:
+            video2helmets = pickle.load(f)
+        with open(os.path.join(processed_meta_dir, "video2frames.pickle"), "rb") as f:
+            video2frames = pickle.load(f)
+
+        if stage in ["fit", "validate", "test"]:
+            # TODO: config 바로 이용하는게낫나, args로 넘기는게 낫나
+            game_play_arr: np.ndarray
+            game_play_arr = df_filtered.groupby(
+                "game_play")["game_play"].first().to_numpy()
+            # 사용할 game_play 수를 줄여준다.
+            game_play_arr = game_play_arr[:CFG["num_train_video"]]
+
+            train_video_size = int(len(game_play_arr) * 0.8)
+            valid_video_size = int(len(game_play_arr) * 0.1)
+            test_video_size = len(game_play_arr) - \
+                (train_video_size + valid_video_size)
+            # TODO: seed 고정을 함수 밖으로 옮기는게 나을지
+            seed = torch.Generator().manual_seed(CFG["seed"])
+            train_split, valid_split, test_split = random_split(
+                game_play_arr, [train_video_size, valid_video_size, test_video_size], generator=seed)
+
+            if stage == "fit":
+                game_play_filter_arr = game_play_arr[train_split.indices]
+            elif stage == "validate":
+                game_play_filter_arr = game_play_arr[valid_split.indices]
+            else:
+                # test
+                game_play_filter_arr = game_play_arr[test_split.indices]
+            print(
+                f"-- num_videos: {len(game_play_filter_arr)}/{len(game_play_arr)}")
+            df_filtered_dataset = df_filtered[df_filtered["game_play"].isin(
+                game_play_filter_arr)]
+        else:
+            df_filtered_dataset = df_filtered
+
+        # NOTE: predict에서는 split 및 데이터 줄이는 과정이 필요없다.
+
+        print(f"-- Label count {stage}: ")
+        print(df_filtered_dataset.groupby("contact")["contact"].count())
 
         dataset = CNN25Dataset(
-            df=df_filtered,
+            df=df_filtered_dataset,
             data_dir=self.data_dir,
-            tmp_data_dir=self.tmp_data_dir,
-            feature_cols=feature_cols,
+            preprocess_result_dir=self.preprocess_result_dir,
+            feature_cols=self.feature_cols,
             video2helmets=video2helmets,
             video2frames=video2frames,
             aug=self.valid_aug,
-            mode=file_name)
+            mode=stage)
 
         return dataset
 
@@ -279,24 +382,26 @@ class CNN25DataModule(pl.LightningDataModule):
         # stage 는 fit/validate/test/predict 중 하나임.
         # train_ 데이터를 다시 train/validation/test로 나누고,
         # test_ 데이터는 predict에 사용함.
-        if stage == "predict":
-            raw_dataset_test = self.generate_raw_dataset("test")
-            self.dataset_pred = raw_dataset_test
-        elif stage == "fit":
-            raw_dataset_train = self.generate_raw_dataset("train")
-            print(f"raw_train_size: {len(raw_dataset_train)}")
-            # subset for training run check
-            subset_indices = torch.arange(10000)
-            raw_dataset_train = Subset(raw_dataset_train, subset_indices)
 
-            train_set_size = int(len(raw_dataset_train) * 0.8)
-            valid_set_size = int(len(raw_dataset_train) * 0.1)
-            test_set_size = len(raw_dataset_train) - \
-                (train_set_size + valid_set_size)
-
-            seed = torch.Generator().manual_seed(CFG["seed"])
-            self.dataset_train, self.dataset_valid, self.dataset_test = random_split(
-                raw_dataset_train, [train_set_size, valid_set_size, test_set_size], generator=seed)
+        # https://pytorch-lightning.readthedocs.io/en/stable/data/datamodule.html
+        # 데이터셋 생성
+        print("------ [Setup dataset] ------")
+        if stage == "fit":
+            self.dataset_train = self.generate_dataset("fit")
+            print(f"- fit_dataset_size: {len(self.dataset_train)}")
+            self.dataset_valid = self.generate_dataset("validate")
+            print(f"- validate_dataset_size: {len(self.dataset_valid)}")
+        elif stage == "validate":
+            self.dataset_valid = self.generate_dataset("validate")
+            print(f"- {stage}_dataset_size: {len(self.dataset_valid)}")
+        elif stage == "test":
+            self.dataset_test = self.generate_dataset("test")
+            print(f"- {stage}_dataset_size: {len(self.dataset_test)}")
+        elif stage == "predict":
+            self.dataset_pred = self.generate_dataset("predict")
+            print(f"- {stage}_dataset_size: {len(self.dataset_pred)}")
+        else:
+            raise TypeError("stage error.")
 
     def train_dataloader(self):
         return DataLoader(self.dataset_train, batch_size=CFG["batch_size"], num_workers=CFG["num_workers"])

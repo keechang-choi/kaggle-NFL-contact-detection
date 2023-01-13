@@ -3,11 +3,12 @@ CFG = {
     'model_version': 'A',
     'dataset_params': {
         'data_dir': './data',
-        "tmp_data_dir": "./data"
+        "preprocess_result_dir": "./data/processed"
     },
     'model_params': {
         'backbone': 'resnet50'
     },
+    "num_train_video": 40,
     'seed': 42,
     'img_size': 256,
     'epochs': 20,
@@ -18,5 +19,6 @@ CFG = {
     'num_workers': 8,
     "batch_size": 24,
     "logger_dir": "../lightning_logs",
-    "threshold": 0.29
+    "threshold": 0.29,
+    "is_prediction": False
 }
