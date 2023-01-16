@@ -33,7 +33,7 @@ class CNN25Dataset(Dataset):
 
         self.video2helmets = video2helmets
         self.video2frames = video2frames
-        
+
         os.makedirs(self.preprocess_result_dir, exist_ok=True)
 
     def __len__(self):
@@ -44,7 +44,7 @@ class CNN25Dataset(Dataset):
     #     return cv2.imread(path, 0)
 
     def __getitem__(self, idx):
-        window = 24
+        window = CFG["window"]  # 24
         frame = self.frame[idx]
 
         # TODO: 이 부분 의미 잘 모르겠음. (기존코드)
@@ -221,10 +221,10 @@ class CNN25DataModule(pl.LightningDataModule):
         run_type = "test" if is_prediction else "train"
         frame_dir = os.path.join(self.preprocess_result_dir, "frames")
         processed_meta_dir = os.path.join(self.preprocess_result_dir, run_type)
-        
+
         os.makedirs(frame_dir, exist_ok=True)
         os.makedirs(processed_meta_dir, exist_ok=True)
-            
+
         print("====== [Preprocess] ======")
         print(f"- is_prediction: {is_prediction}")
         print(f"- run_type: {run_type}")
@@ -234,7 +234,7 @@ class CNN25DataModule(pl.LightningDataModule):
             self.data_dir, f"{run_type}_baseline_helmets.csv"))
         df_video_metadata = pd.read_csv(os.path.join(
             self.data_dir, f"{run_type}_video_metadata.csv"))
-        
+
         print("------ [ffmpeg] ------")
         print(f"ffmpeg frames {run_type}")
         for video in tqdm(df_helmets.video.unique()):
@@ -246,7 +246,8 @@ class CNN25DataModule(pl.LightningDataModule):
 
         print("------ [Mapping metadata] ------")
         if not os.path.exists(os.path.join(processed_meta_dir, "video2helmets.pickle")):
-            print(f"Mapping video2helmets [size: {len(df_helmets.video.unique())}]")
+            print(
+                f"Mapping video2helmets [size: {len(df_helmets.video.unique())}]")
             video2helmets = {}
             df_helmets_new = df_helmets.set_index('video')
             for video in tqdm(df_helmets.video.unique()):
@@ -258,9 +259,10 @@ class CNN25DataModule(pl.LightningDataModule):
             del df_helmets, df_helmets_new
         else:
             print(f"video2helemts already exists.. skip")
-        
+
         if not os.path.exists(os.path.join(processed_meta_dir, "video2frames.pickle")):
-            print(f"-- Mapping video2frames: [size: {len(df_video_metadata.game_play.unique())}]")
+            print(
+                f"-- Mapping video2frames: [size: {len(df_video_metadata.game_play.unique())}]")
             video2frames = {}
             for game_play in tqdm(df_video_metadata.game_play.unique()):
                 for view in ['Endzone', 'Sideline']:
@@ -268,14 +270,14 @@ class CNN25DataModule(pl.LightningDataModule):
                     video2frames[video] = max(list(map(
                         lambda x: int(x.split('_')[-1].split('.')[0]),
                         glob.glob(os.path.join(frame_dir, f'{video}*')
-                                ))))
+                                  ))))
                 with open(os.path.join(processed_meta_dir, "video2frames.pickle"), "wb") as f:
                     pickle.dump(video2frames, f)
             # 메모리 이슈
             del video2frames
         else:
             print(f"video2frames already exists.. skip")
-        
+
         gc.collect()
 
         print(f"------ [Preprocess helmet sensor data] ------")
@@ -304,21 +306,22 @@ class CNN25DataModule(pl.LightningDataModule):
             gc.collect()
 
             # save preprocessed files to writable dir.
-            df_filtered.to_csv(os.path.join(self.preprocess_result_dir, run_type, "df_filtered.csv"))
+            df_filtered.to_csv(os.path.join(
+                self.preprocess_result_dir, run_type, "df_filtered.csv"))
         else:
             print("df_filtered already exists.. skip")
 
     def generate_dataset(self, stage: str) -> CNN25Dataset:
         # 학습 데이터 split을 수행한다.
-        
+
         print(f"====== Generating dataset  ======")
         print(f"- stage: {stage}")
-        
-        if stage == "test" or stage == "predict":
+
+        if stage == "predict":
             run_type = "test"
         else:
             run_type = "train"
-            
+
         processed_meta_dir = os.path.join(self.preprocess_result_dir, run_type)
 
         print(f"------ [Load metadata] ------")
@@ -365,6 +368,10 @@ class CNN25DataModule(pl.LightningDataModule):
         print(f"-- Label count {stage}: ")
         print(df_filtered_dataset.groupby("contact")["contact"].count())
 
+        if stage in ["fit"]:
+            aug = self.train_aug
+        else:
+            aug = self.valid_aug
         dataset = CNN25Dataset(
             df=df_filtered_dataset,
             data_dir=self.data_dir,
@@ -372,7 +379,7 @@ class CNN25DataModule(pl.LightningDataModule):
             feature_cols=self.feature_cols,
             video2helmets=video2helmets,
             video2frames=video2frames,
-            aug=self.valid_aug,
+            aug=aug,
             mode=stage)
 
         return dataset

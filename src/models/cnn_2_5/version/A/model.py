@@ -10,8 +10,12 @@ import torchmetrics
 class CNN25Model(nn.Module):
     def __init__(self, backbone):
         super(CNN25Model, self).__init__()
+        in_chans = CFG["window"] // 4 * 2 + 1
         self.backbone = timm.create_model(
-            backbone, pretrained=False, num_classes=500, in_chans=13)
+            backbone,
+            pretrained=(CFG["is_prediction"] is False),
+            num_classes=500,
+            in_chans=in_chans)
         self.mlp = nn.Sequential(
             nn.Linear(18, 64),
             nn.LayerNorm(64),
@@ -61,10 +65,6 @@ class CNN25LightningModule(pl.LightningModule):
         self.valid_acc(output, label)
         self.log('valid_acc_step', self.valid_acc)
 
-    def validation_epoch_end(self, outs):
-        # log epoch metric
-        self.log('valid_acc_epoch', self.valid_acc)
-
     def test_step(self, batch, batch_index):
         img, feature, label = batch
         output = self.model(img, feature).squeeze(-1)
@@ -73,10 +73,6 @@ class CNN25LightningModule(pl.LightningModule):
 
         self.test_acc(output, label)
         self.log('test_acc_step', self.test_acc)
-
-    def test_epoch_end(self, outs):
-        # log epoch metric
-        self.log('test_acc_epoch', self.test_acc)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
