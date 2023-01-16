@@ -11,7 +11,7 @@ CFG = {
     "num_train_video": 40,
     'seed': 42,
     'img_size': 256,
-    'epochs': 20,
+    'epochs': 10,
     'train_bs': 100,
     'valid_bs': 64,
     'lr': 1e-3,
