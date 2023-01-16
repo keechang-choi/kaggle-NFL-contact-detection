@@ -11,7 +11,12 @@ class CNN25Model(nn.Module):
     def __init__(self, backbone):
         super(CNN25Model, self).__init__()
         in_chans = CFG["window"] // 4 * 2 + 1
-        self.backbone = timm.create_model(
+        self.backbone_end = timm.create_model(
+            backbone,
+            pretrained=(CFG["is_prediction"] is False),
+            num_classes=500,
+            in_chans=in_chans)
+        self.backbone_side = timm.create_model(
             backbone,
             pretrained=(CFG["is_prediction"] is False),
             num_classes=500,
@@ -33,10 +38,12 @@ class CNN25Model(nn.Module):
 
     def forward(self, img, feature):
         b, c, h, w = img.shape
-        img = img.reshape(b*2, c//2, h, w)
-        img = self.backbone(img).reshape(b, -1)
+        # img = img.reshape(b*2, c//2, h, w)
+        img_end, img_side = torch.split(img, c//2, dim=1)
+        img_end = self.backbone_end(img_end).reshape(b, -1)
+        img_side = self.backbone_side(img_side).reshape(b, -1)
         feature = self.mlp(feature)
-        y = self.fc_sigmoid(torch.cat([img, feature], dim=1))
+        y = self.fc_sigmoid(torch.cat([img_end, img_side, feature], dim=1))
 
         return y
 

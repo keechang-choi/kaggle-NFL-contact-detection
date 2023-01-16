@@ -17,7 +17,7 @@ CFG = {
     'lr': 1e-3,
     'weight_decay': 1e-6,
     'num_workers': 8,
-    "batch_size": 32,
+    "batch_size": 24,
     "logger_dir": "../lightning_logs",
     "threshold": 0.29,
     "is_prediction": False,
