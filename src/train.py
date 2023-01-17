@@ -51,8 +51,8 @@ if __name__ == "__main__":
                                                                    load_path=args.load_path,
                                                                    params=model_params)
 
-    checkpoint_callback = ModelCheckpoint(dirpath=os.path.join(
-        logger_path, CFG["model_name"]), save_top_k=1, monitor="val_loss")
+    checkpoint_callback = ModelCheckpoint(
+        save_top_k=1, monitor="val_loss", mode="min")
     # NOTE: cuda, mps, cpu for accelerator.
     # https://pytorch-lightning.readthedocs.io/en/stable/accelerators/mps_basic.html
     trainer = pl.Trainer(max_epochs=CFG["epochs"],
