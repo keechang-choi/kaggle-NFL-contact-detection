@@ -6,6 +6,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.loggers import TensorBoardLogger
 import argparse
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+from pytorch_lightning.callbacks import ModelCheckpoint
 
 from config import CFG
 from factory.dataset_factory import DataSetFactory
@@ -50,12 +51,17 @@ if __name__ == "__main__":
                                                                    load_path=args.load_path,
                                                                    params=model_params)
 
+    checkpoint_callback = ModelCheckpoint(dirpath=os.path.join(
+        logger_path, CFG["model_name"]), save_top_k=1, monitor="val_loss")
     # NOTE: cuda, mps, cpu for accelerator.
     # https://pytorch-lightning.readthedocs.io/en/stable/accelerators/mps_basic.html
     trainer = pl.Trainer(max_epochs=CFG["epochs"],
                          accelerator=device_str,
                          devices=1 if device_str != "cpu" else None,
                          logger=logger,
-                         callbacks=[EarlyStopping(monitor="val_loss", mode="min", patience=3)])
+                         callbacks=[
+        EarlyStopping(monitor="val_loss", mode="min", patience=3),
+        checkpoint_callback
+    ])
     trainer.fit(model=lightning_module, datamodule=data_module)
     trainer.test(model=lightning_module, datamodule=data_module)

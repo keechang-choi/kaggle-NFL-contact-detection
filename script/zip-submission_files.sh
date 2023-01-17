@@ -1,5 +1,6 @@
 #!/bin/bash
 
 pushd ..
-zip -r ./submission_files.zip ./src ./third-party ./epoch-9-step-29410-011619.ckpt
+rm -rf ./submission_files.zip
+zip -r ./submission_files.zip ./src ./third-party ./epoch-8-step-35289-011716.ckpt
 popd
