@@ -6,17 +6,23 @@ import timm
 from config import CFG
 import torchmetrics
 
+# CNN 2.5D  Backbone Separated
 
-class CNN25Model(nn.Module):
+
+class CNN25BSModel(nn.Module):
     def __init__(self, backbone):
-        super(CNN25Model, self).__init__()
+        super(CNN25BSModel, self).__init__()
         in_chans = CFG["window"] // 4 * 2 + 1
-        self.backbone = timm.create_model(
+        self.backbone_end = timm.create_model(
             backbone,
             pretrained=False,
             num_classes=500,
             in_chans=in_chans)
-
+        self.backbone_side = timm.create_model(
+            backbone,
+            pretrained=False,
+            num_classes=500,
+            in_chans=in_chans)
         self.mlp = nn.Sequential(
             nn.Linear(18, 64),
             nn.LayerNorm(64),
@@ -34,18 +40,20 @@ class CNN25Model(nn.Module):
 
     def forward(self, img, feature):
         b, c, h, w = img.shape
-        img = img.reshape(b*2, c//2, h, w)
-        img = self.backbone(img).reshape(b, -1)
+        img_end, img_side = torch.split(img, c//2, dim=1)
+        img_end = self.backbone_end(img_end).reshape(b, -1)
+        img_side = self.backbone_side(img_side).reshape(b, -1)
         feature = self.mlp(feature)
-        y = self.fc_sigmoid(torch.cat([img, feature], dim=1))
+        y = self.fc_sigmoid(torch.cat([img_end, img_side, feature], dim=1))
 
         return y
 
 
-class CNN25LightningModule(pl.LightningModule):
+# CNN 2.5D  Backbone Separated
+class CNN25BSLightningModule(pl.LightningModule):
     def __init__(self, backbone):
         super().__init__()
-        self.model = CNN25Model(backbone)
+        self.model = CNN25BSModel(backbone)
 
         self.valid_acc = torchmetrics.Accuracy(task='binary')
         self.test_acc = torchmetrics.Accuracy(task='binary')

@@ -121,16 +121,18 @@ class CNN25DataModule(pl.LightningDataModule):
         self.preprocess_result_dir = preprocess_result_dir
 
         self.train_aug = A.Compose([
-            A.HorizontalFlip(p=0.5),
-            A.ShiftScaleRotate(p=0.5),
+            # Bright and Contrast가 의미 있는지 모르겠으나, normalize 안해주면 에러발생.
+            A.ToFloat(max_value=255),
+            # A.HorizontalFlip(p=0.5),  # 숫자 뒤집어 짐
+            A.ShiftScaleRotate(p=0.5, rotate_limit=5),  # 45도는 너무 큼.
             A.RandomBrightnessContrast(
                 brightness_limit=(-0.1, 0.1), contrast_limit=(-0.1, 0.1), p=0.5),
-            A.Normalize(mean=[0.], std=[1.]),
+            A.Normalize(mean=[0.], std=[1.], max_pixel_value=1.0),
             ToTensorV2()
         ])
 
         self.valid_aug = A.Compose([
-            A.Normalize(mean=[0.], std=[1.]),
+            A.Normalize(mean=[0.], std=[1.], max_pixel_value=255),
             ToTensorV2()
         ])
         self.use_cols = [
