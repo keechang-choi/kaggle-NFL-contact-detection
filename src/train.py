@@ -65,3 +65,10 @@ if __name__ == "__main__":
     ])
     trainer.fit(model=lightning_module, datamodule=data_module)
     trainer.test(model=lightning_module, datamodule=data_module)
+    # for testing from saved model.
+    # trainer.test(
+    #     model=lightning_module,
+    #     datamodule=data_module,
+    #     # ckpt_path="lightning_logs/cnn_2_5/epoch=9-step=39210.ckpt"
+    #     ckpt_path="epoch-8-step-35289-011716.ckpt"
+    # )

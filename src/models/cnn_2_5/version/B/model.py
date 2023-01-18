@@ -6,6 +6,8 @@ import timm
 from config import CFG
 import torchmetrics
 
+from utils.mcc import MCC_Loss
+
 # CNN 2.5D  Backbone Separated
 
 
@@ -57,6 +59,7 @@ class CNN25BSLightningModule(pl.LightningModule):
 
         self.valid_acc = torchmetrics.Accuracy(task='binary')
         self.test_acc = torchmetrics.Accuracy(task='binary')
+        self.mcc_loss = MCC_Loss()
 
     def training_step(self, batch, batch_index):
         img, feature, label = batch
@@ -82,6 +85,20 @@ class CNN25BSLightningModule(pl.LightningModule):
 
         self.test_acc(output, label)
         self.log('test_acc_step', self.test_acc)
+
+        return torch.stack((output, label), dim=1)
+
+    def test_epoch_end(self, outputs) -> None:
+        outputs_cat = torch.cat(outputs)
+        y, labels = outputs_cat[:, 0], outputs_cat[:, 1]
+        preds = (y > CFG["threshold"]).float()
+        print(
+            f"====== [Test contact counts] ======\n"
+            f"-- preds  : {torch.sum(preds)}/{len(preds)}\n"
+            f"-- labels : {torch.sum(labels)}/{len(labels)}\n")
+        mcc_loss = self.mcc_loss(preds, labels)
+        mcc = 1.0 - mcc_loss
+        self.log("test_mcc", mcc)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
