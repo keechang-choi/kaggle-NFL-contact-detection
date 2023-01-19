@@ -1,6 +1,6 @@
 CFG = {
     'model_name': 'cnn_2_5',
-    'model_version': 'B',
+    'model_version': 'A',
     'dataset_params': {
         'data_dir': './data',
         "preprocess_result_dir": "./data/processed"

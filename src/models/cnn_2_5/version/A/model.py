@@ -49,9 +49,12 @@ class CNN25LightningModule(pl.LightningModule):
         super().__init__()
         self.model = CNN25Model(backbone)
 
-        self.valid_acc = torchmetrics.Accuracy(task='binary')
-        self.test_acc = torchmetrics.Accuracy(task='binary')
+        self.valid_acc = torchmetrics.Accuracy(
+            task='binary', threshold=CFG["threshold"])
+        self.test_acc = torchmetrics.Accuracy(
+            task='binary', threshold=CFG["threshold"])
         self.mcc_loss = MCC_Loss()
+        self.last_test_output = None
 
     def training_step(self, batch, batch_index):
         img, feature, label = batch
@@ -80,6 +83,7 @@ class CNN25LightningModule(pl.LightningModule):
         return torch.stack((output, label), dim=1)
 
     def test_epoch_end(self, outputs) -> None:
+        self.last_test_output = outputs
         outputs_cat = torch.cat(outputs)
         y, labels = outputs_cat[:, 0], outputs_cat[:, 1]
         preds = (y > CFG["threshold"]).float()
