@@ -413,7 +413,7 @@ class CNN25DataModule(pl.LightningDataModule):
             raise TypeError("stage error.")
 
     def train_dataloader(self):
-        return DataLoader(self.dataset_train, batch_size=CFG["batch_size"], num_workers=CFG["num_workers"])
+        return DataLoader(self.dataset_train, batch_size=CFG["batch_size"], num_workers=CFG["num_workers"], shuffle=True, drop_last=True)
 
     def val_dataloader(self):
         return DataLoader(self.dataset_valid, batch_size=CFG["batch_size"], num_workers=CFG["num_workers"])
