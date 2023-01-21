@@ -6,6 +6,8 @@ import timm
 from config import CFG
 import torchmetrics
 
+from utils.mcc import MCC_Loss
+
 
 class CNN25Model(nn.Module):
     def __init__(self, backbone):
@@ -13,9 +15,10 @@ class CNN25Model(nn.Module):
         in_chans = CFG["window"] // 4 * 2 + 1
         self.backbone = timm.create_model(
             backbone,
-            pretrained=(CFG["is_prediction"] is False),
+            pretrained=False,
             num_classes=500,
             in_chans=in_chans)
+
         self.mlp = nn.Sequential(
             nn.Linear(18, 64),
             nn.LayerNorm(64),
@@ -46,8 +49,12 @@ class CNN25LightningModule(pl.LightningModule):
         super().__init__()
         self.model = CNN25Model(backbone)
 
-        self.valid_acc = torchmetrics.Accuracy(task='binary')
-        self.test_acc = torchmetrics.Accuracy(task='binary')
+        self.valid_acc = torchmetrics.Accuracy(
+            task='binary', threshold=CFG["threshold"])
+        self.test_acc = torchmetrics.Accuracy(
+            task='binary', threshold=CFG["threshold"])
+        self.mcc_loss = MCC_Loss()
+        self.last_test_output = None
 
     def training_step(self, batch, batch_index):
         img, feature, label = batch
@@ -73,6 +80,20 @@ class CNN25LightningModule(pl.LightningModule):
 
         self.test_acc(output, label)
         self.log('test_acc_step', self.test_acc)
+        return torch.stack((output, label), dim=1)
+
+    def test_epoch_end(self, outputs) -> None:
+        self.last_test_output = outputs
+        outputs_cat = torch.cat(outputs)
+        y, labels = outputs_cat[:, 0], outputs_cat[:, 1]
+        preds = (y > CFG["threshold"]).float()
+        print(
+            f"====== [Test contact counts] ======\n"
+            f"-- preds  : {torch.sum(preds)}/{len(preds)}\n"
+            f"-- labels : {torch.sum(labels)}/{len(labels)}\n")
+        mcc_loss = self.mcc_loss(preds, labels)
+        mcc = 1.0 - mcc_loss
+        self.log("test_mcc", mcc)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)

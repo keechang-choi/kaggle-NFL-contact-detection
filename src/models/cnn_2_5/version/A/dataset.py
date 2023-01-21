@@ -121,16 +121,18 @@ class CNN25DataModule(pl.LightningDataModule):
         self.preprocess_result_dir = preprocess_result_dir
 
         self.train_aug = A.Compose([
-            A.HorizontalFlip(p=0.5),
-            A.ShiftScaleRotate(p=0.5),
+            # Bright and Contrast가 의미 있는지 모르겠으나, normalize 안해주면 에러발생.
+            A.ToFloat(max_value=255),
+            # A.HorizontalFlip(p=0.5),  # 숫자 뒤집어 짐
+            A.ShiftScaleRotate(p=0.5, rotate_limit=5),  # 45도는 너무 큼.
             A.RandomBrightnessContrast(
                 brightness_limit=(-0.1, 0.1), contrast_limit=(-0.1, 0.1), p=0.5),
-            A.Normalize(mean=[0.], std=[1.]),
+            A.Normalize(mean=[0.], std=[1.], max_pixel_value=1.0),
             ToTensorV2()
         ])
 
         self.valid_aug = A.Compose([
-            A.Normalize(mean=[0.], std=[1.]),
+            A.Normalize(mean=[0.], std=[1.], max_pixel_value=255),
             ToTensorV2()
         ])
         self.use_cols = [
@@ -245,7 +247,7 @@ class CNN25DataModule(pl.LightningDataModule):
                     frame_dir, f"{video}_%04d.jpg"), "-hide_banner", "-loglevel", "error"])
 
         print("------ [Mapping metadata] ------")
-        if not os.path.exists(os.path.join(processed_meta_dir, "video2helmets.pickle")):
+        if CFG["is_submission"] or not os.path.exists(os.path.join(processed_meta_dir, "video2helmets.pickle")):
             print(
                 f"Mapping video2helmets [size: {len(df_helmets.video.unique())}]")
             video2helmets = {}
@@ -260,7 +262,7 @@ class CNN25DataModule(pl.LightningDataModule):
         else:
             print(f"video2helemts already exists.. skip")
 
-        if not os.path.exists(os.path.join(processed_meta_dir, "video2frames.pickle")):
+        if CFG["is_submission"] or not os.path.exists(os.path.join(processed_meta_dir, "video2frames.pickle")):
             print(
                 f"-- Mapping video2frames: [size: {len(df_video_metadata.game_play.unique())}]")
             video2frames = {}
@@ -281,7 +283,7 @@ class CNN25DataModule(pl.LightningDataModule):
         gc.collect()
 
         print(f"------ [Preprocess helmet sensor data] ------")
-        if not os.path.exists(os.path.join(self.preprocess_result_dir, run_type, "df_filtered.csv")):
+        if CFG["is_submission"] or not os.path.exists(os.path.join(processed_meta_dir, "df_filtered.csv")):
             df_tracking = pd.read_csv(os.path.join(
                 self.data_dir, f"{run_type}_player_tracking.csv"))
 
@@ -307,7 +309,7 @@ class CNN25DataModule(pl.LightningDataModule):
 
             # save preprocessed files to writable dir.
             df_filtered.to_csv(os.path.join(
-                self.preprocess_result_dir, run_type, "df_filtered.csv"))
+                processed_meta_dir, "df_filtered.csv"))
         else:
             print("df_filtered already exists.. skip")
 
