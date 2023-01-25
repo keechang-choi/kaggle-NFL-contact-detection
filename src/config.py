@@ -1,6 +1,6 @@
 CFG = {
     'model_name': 'cnn_2_5',
-    'model_version': 'A',
+    'model_version': 'B',
     'dataset_params': {
         'data_dir': './data',
         "preprocess_result_dir": "./data/processed"
@@ -8,7 +8,7 @@ CFG = {
     'model_params': {
         'backbone': 'resnet50'
     },
-    "num_train_video": 40,
+    "num_train_video": 240,
     'seed': 42,
     'img_size': 256,
     'epochs': 10,
