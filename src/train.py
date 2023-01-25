@@ -48,7 +48,6 @@ if __name__ == "__main__":
     data_module = DataSetFactory.get_dataset(name=model_name,
                                              params=dataset_params)
     lightning_module = LightningModuleFactory.get_lightning_module(name=model_name,
-                                                                   load_path=args.load_path,
                                                                    params=model_params)
 
     checkpoint_callback = ModelCheckpoint(
@@ -63,7 +62,7 @@ if __name__ == "__main__":
         EarlyStopping(monitor="val_loss", mode="min", patience=3),
         checkpoint_callback
     ])
-    trainer.fit(model=lightning_module, datamodule=data_module)
+    trainer.fit(model=lightning_module, datamodule=data_module, ckpt_path=args.load_path)
     trainer.test(model=lightning_module, datamodule=data_module)
     # for testing from saved model.
     # trainer.test(

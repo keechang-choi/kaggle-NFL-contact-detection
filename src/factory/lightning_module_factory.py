@@ -7,13 +7,9 @@ class LightningModuleFactory():
         pass
 
     @classmethod
-    def get_lightning_module(cls, name, load_path, params):
-        if load_path == "":
-            lightning_module = LightningModuleFactory.init_lightning_module(
-                name, params)
-        else:
-            lightning_module = LightningModuleFactory.load_lightning_module(
-                name, params, load_path)
+    def get_lightning_module(cls, name, params):
+        lightning_module = LightningModuleFactory.init_lightning_module(
+            name, params)
 
         return lightning_module
 
