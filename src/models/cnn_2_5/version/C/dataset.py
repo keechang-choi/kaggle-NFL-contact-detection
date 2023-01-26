@@ -109,6 +109,9 @@ class CNN25SingleGroundDataset(Dataset):
                         img = cv2.imread(
                             os.path.join(self.preprocess_result_dir, f"frames/{video}_{f:04d}.jpg"), cv2.IMREAD_COLOR)
                         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+                        #
+
                         x, w, y, h = bboxes[i]
                         # print(f"img helmet size: {w} x {h}")
                         # 10~60 정도? helmet size
@@ -128,6 +131,8 @@ class CNN25SingleGroundDataset(Dataset):
                         img = img[crop_start_y:crop_end_y,
                                   crop_start_x:crop_end_x,
                                   :]
+                        # 자른 후 정규화 및 transform을 추가한다.
+                        img = self.aug(image=img)["image"]
 
                         # 이미지 가장자리에서 crop 크기가 안나오는 경우 있음.
                         offset_y = (crop_size - img.shape[0]) // 2
@@ -152,7 +157,7 @@ class CNN25SingleGroundDataset(Dataset):
                         print(f"img shape: {img.shape}")
                         print(e)
                         raise e
-                img_new = self.aug(image=img_new)["image"]
+
                 imgs.append(img_new)
 # 0.06s
 
@@ -177,12 +182,15 @@ class CNN25SingleGroundDataModule(pl.LightningDataModule):
             A.ShiftScaleRotate(p=0.5, rotate_limit=5),  # 45도는 너무 큼.
             A.RandomBrightnessContrast(
                 brightness_limit=(-0.1, 0.1), contrast_limit=(-0.1, 0.1), p=0.5),
-            A.Normalize(mean=[0.], std=[1.], max_pixel_value=1.0),
+            A.Normalize(mean=(0.485, 0.456, 0.406),
+                        std=(0.229, 0.224, 0.225),
+                        max_pixel_value=1.0),
         ])
 
         self.valid_aug = A.Compose([
-            A.Normalize(mean=[0., 0., 0.], std=[
-                        1., 1., 1.], max_pixel_value=255),
+            A.Normalize(mean=(0.485, 0.456, 0.406),
+                        std=(0.229, 0.224, 0.225),
+                        max_pixel_value=255.0)
         ])
         self.use_cols = [
             'x_position', 'y_position', 'speed', 'distance',
@@ -420,7 +428,7 @@ class CNN25SingleGroundDataModule(pl.LightningDataModule):
         print(df_filtered_dataset.groupby("contact")["contact"].count())
 
         if stage in ["fit"]:
-            aug = self.valid_aug  # train_aug
+            aug = self.train_aug
         else:
             aug = self.valid_aug
 
