@@ -18,7 +18,7 @@ import pickle
 from config import CFG
 
 
-class CNN25Dataset(Dataset):
+class CNN25SingleGroundDataset(Dataset):
     def __init__(self, df, data_dir, preprocess_result_dir, feature_cols, video2helmets, video2frames, aug, mode='train'):
         self.df = df
         self.data_dir = data_dir
@@ -100,14 +100,15 @@ class CNN25Dataset(Dataset):
             # for i, f in enumerate(range(frame-window, frame+window+1, 4)):
             for i, f in enumerate(range(frame, frame+1, 4)):
                 img_new = np.zeros(
-                    (self.image_size, self.image_size), dtype=np.float32)
+                    (self.image_size, self.image_size, 3), dtype=np.float32)
                 if f > self.video2frames[video]:
                     print(
                         f"flag: {flag}, frame: {f}, video frame: {self.video2frames[video]}")
                 if flag == 1 and f <= self.video2frames[video]:
                     try:
                         img = cv2.imread(
-                            os.path.join(self.preprocess_result_dir, f"frames/{video}_{f:04d}.jpg"), 0)
+                            os.path.join(self.preprocess_result_dir, f"frames/{video}_{f:04d}.jpg"), cv2.IMREAD_COLOR)
+                        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                         x, w, y, h = bboxes[i]
                         # print(f"img helmet size: {w} x {h}")
                         # 10~60 정도? helmet size
@@ -115,7 +116,7 @@ class CNN25Dataset(Dataset):
                         crop_size = int((max(w, h)*10))
                         # crop_size = 256
                         img_tmp = np.zeros(
-                            (crop_size, crop_size), dtype=np.float32)
+                            (crop_size, crop_size, 3), dtype=np.float32)
                         # print(crop_size)
                         crop_half = crop_size // 2
                         crop_start_y = max(int(y+h/2)-crop_half, 0)
@@ -125,19 +126,22 @@ class CNN25Dataset(Dataset):
                         crop_end_x = min(int(x+w/2)+crop_half, img.shape[1])
                         # crop할 크기에 따라 원본 프레임에서 이미지 잘라냄.
                         img = img[crop_start_y:crop_end_y,
-                                  crop_start_x:crop_end_x]
+                                  crop_start_x:crop_end_x,
+                                  :]
 
                         # 이미지 가장자리에서 crop 크기가 안나오는 경우 있음.
                         offset_y = (crop_size - img.shape[0]) // 2
                         offset_x = (crop_size - img.shape[1]) // 2
                         # resize 하기 전에 zero padding 사용해서 중앙으로 옮김.
                         img_tmp[offset_y: offset_y+img.shape[0],
-                                offset_x: offset_x+img.shape[1]] = img
+                                offset_x: offset_x+img.shape[1],
+                                :] = img
 
                         # resize를 통해 CNN에 들어갈 사이즈로 맞춰줌.
                         img_tmp = cv2.resize(
                             img_tmp, (self.image_size, self.image_size))
-                        img_new[:img_tmp.shape[0], :img_tmp.shape[1]] = img_tmp
+                        img_new[:img_tmp.shape[0],
+                                :img_tmp.shape[1], :] = img_tmp
                     except Exception as e:
                         print(os.path.join(self.preprocess_result_dir,
                               f"frames/{video}_{f:04d}.jpg"))
@@ -148,20 +152,19 @@ class CNN25Dataset(Dataset):
                         print(f"img shape: {img.shape}")
                         print(e)
                         raise e
-
+                img_new = self.aug(image=img_new)["image"]
                 imgs.append(img_new)
 # 0.06s
 
         feature = np.float32(self.feature[idx])
-
-        img = np.array(imgs).transpose(1, 2, 0)
-        img = self.aug(image=img)["image"]
+        imgs = np.array(imgs)
+        imgs = imgs.transpose(0, 3, 1, 2)
         label = np.float32(self.df.contact.values[idx])
 
-        return img, feature, label
+        return imgs, feature, label
 
 
-class CNN25DataModule(pl.LightningDataModule):
+class CNN25SingleGroundDataModule(pl.LightningDataModule):
     def __init__(self, data_dir: str = "./", preprocess_result_dir: str = "./"):
         super().__init__()
         self.data_dir = data_dir
@@ -170,17 +173,16 @@ class CNN25DataModule(pl.LightningDataModule):
         self.train_aug = A.Compose([
             # Bright and Contrast가 의미 있는지 모르겠으나, normalize 안해주면 에러발생.
             A.ToFloat(max_value=255),
-            # A.HorizontalFlip(p=0.5),  # 숫자 뒤집어 짐
+            A.HorizontalFlip(p=0.5),  # 숫자 뒤집어 짐
             A.ShiftScaleRotate(p=0.5, rotate_limit=5),  # 45도는 너무 큼.
             A.RandomBrightnessContrast(
                 brightness_limit=(-0.1, 0.1), contrast_limit=(-0.1, 0.1), p=0.5),
             A.Normalize(mean=[0.], std=[1.], max_pixel_value=1.0),
-            ToTensorV2()
         ])
 
         self.valid_aug = A.Compose([
-            A.Normalize(mean=[0.], std=[1.], max_pixel_value=255),
-            ToTensorV2()
+            A.Normalize(mean=[0., 0., 0.], std=[
+                        1., 1., 1.], max_pixel_value=255),
         ])
         self.use_cols = [
             'x_position', 'y_position', 'speed', 'distance',
@@ -360,7 +362,7 @@ class CNN25DataModule(pl.LightningDataModule):
         else:
             print("df_filtered already exists.. skip")
 
-    def generate_dataset(self, stage: str) -> CNN25Dataset:
+    def generate_dataset(self, stage: str) -> CNN25SingleGroundDataset:
         # 학습 데이터 split을 수행한다.
 
         print(f"====== Generating dataset  ======")
@@ -418,7 +420,7 @@ class CNN25DataModule(pl.LightningDataModule):
         print(df_filtered_dataset.groupby("contact")["contact"].count())
 
         if stage in ["fit"]:
-            aug = self.train_aug
+            aug = self.valid_aug  # train_aug
         else:
             aug = self.valid_aug
 
@@ -427,7 +429,7 @@ class CNN25DataModule(pl.LightningDataModule):
         df_filtered_dataset = df_filtered_dataset.query(
             'contact == 1').reset_index(drop=True)
 
-        dataset = CNN25Dataset(
+        dataset = CNN25SingleGroundDataset(
             df=df_filtered_dataset,
             data_dir=self.data_dir,
             preprocess_result_dir=self.preprocess_result_dir,
