@@ -191,10 +191,11 @@ class CNN25SingleGroundDataModule(pl.LightningDataModule):
             'direction', 'orientation', 'acceleration', 'sa'
         ]
         # TODO: 이 부분 hard-coding 된 것 개선.
-        self.feature_cols: List[str] = ["distance", "G_flug"]
+        # NOTE: Ground만 사용할 경우 player1로 feature col 변경됨.
+        self.feature_cols: List[str] = ["G_flug"]
         for col in self.use_cols:
             self.feature_cols.append(col + "_1")
-            self.feature_cols.append(col + "_2")
+            # self.feature_cols.append(col + "_2")
 
         self.dataset_test = None
         self.dataset_train = None

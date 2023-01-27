@@ -16,10 +16,10 @@ class CNN25SingleGroundModel(nn.Module):
         resnet = timm.create_model(
             backbone,
             pretrained=True)
-        self.backbone = nn.Sequential(**list(resnet.children())[:-1])
+        self.backbone = nn.Sequential(*list(resnet.children())[:-1])
 
         self.mlp = nn.Sequential(
-            nn.Linear(18, 64),
+            nn.Linear(9, 64),
             nn.LayerNorm(64),
             nn.ReLU(),
             nn.Dropout(0.2),
