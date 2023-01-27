@@ -32,26 +32,19 @@ class CNN25SingleGroundDataset(Dataset):
         self.mode = mode
 
         self.video2frames = video2frames
+        # resnet 원래 사이즈로 맞춰줌.
         self.image_size = 224
         os.makedirs(self.preprocess_result_dir, exist_ok=True)
 
     def __len__(self):
         return len(self.df)
 
-    # @lru_cache(1024)
-    # def read_img(self, path):
-    #     return cv2.imread(path, 0)
-
     def __getitem__(self, idx):
         window = CFG["window"]  # 24
         frame = self.frame[idx]
 
-        # TODO: 이 부분 의미 잘 모르겠음. (기존코드)
         # frame 값은 tracking data (10Hz)를 변환해서 얻은 값인데,
         # 이 값에 해당하는 정확한 frame 값이 helmet data에 없을 수 있음
-        # if self.mode in ["fit", "validate", "test"]:
-        #     frame = frame + random.randint(-6, 6)
-
         players = []
         for p in self.players[idx]:
             if p == 'G':
@@ -95,24 +88,23 @@ class CNN25SingleGroundDataset(Dataset):
             else:
                 # 보통 트랙킹 데이터에서 가져온 선수가 해당 프레임에서 안잡힌 경우.
                 flag = 0
-                print(
-                    f"flag: {flag}-{len(query_res)} , idx: {idx}, video: {video}, frame: {frame}, player: {players}")
-# 0.03s
+                # print(
+                #     f"flag: {flag}-{len(query_res)} , idx: {idx}, video: {video}, frame: {frame}, player: {players}")
 
+            # 하나의 데이터셋은 하나의 이미지를 포함하도록 함.
             # for i, f in enumerate(range(frame-window, frame+window+1, 4)):
             for i, f in enumerate(range(frame, frame+1, 4)):
                 img_new = np.zeros(
                     (self.image_size, self.image_size, 3), dtype=np.float32)
-                if f > self.video2frames[video]:
-                    print(
-                        f"flag: {flag}, frame: {f}, video frame: {self.video2frames[video]}")
+                # if f > self.video2frames[video]:
+                # # 목적 frame에 video길이 넘는 경우가 있는데 왜그런지 잘 모르겠음.
+                #     print(
+                #         f"flag: {flag}, frame: {f}, video frame: {self.video2frames[video]}")
                 if flag == 1 and f <= self.video2frames[video]:
                     try:
                         img = cv2.imread(
                             os.path.join(self.preprocess_result_dir, f"frames/{video}_{f:04d}.jpg"), cv2.IMREAD_COLOR)
                         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
-                        #
 
                         x, w, y, h = bboxes[i]
                         # print(f"img helmet size: {w} x {h}")
@@ -161,10 +153,10 @@ class CNN25SingleGroundDataset(Dataset):
                         raise e
 
                 imgs.append(img_new)
-# 0.06s
 
         feature = np.float32(self.feature[idx])
         imgs = np.array(imgs)
+        # view channel(rgb) h w 로 변경해준다.
         imgs = imgs.transpose(0, 3, 1, 2)
         label = np.float32(self.df.contact.values[idx])
 
@@ -317,22 +309,6 @@ class CNN25SingleGroundDataModule(pl.LightningDataModule):
                 subprocess.call(["ffmpeg", "-i", os.path.join(self.data_dir, f"{run_type}/{video}"), "-q:v", "2", "-f", "image2", os.path.join(
                     frame_dir, f"{video}_%04d.jpg"), "-hide_banner", "-loglevel", "error"])
 
-        print("------ [Mapping metadata] ------")
-#         if CFG["is_submission"] or not os.path.exists(os.path.join(processed_meta_dir, "video2helmets.pickle")):
-#             print(
-#                 f"Mapping video2helmets [size: {len(df_helmets.video.unique())}]")
-#             video2helmets = {}
-#             df_helmets_new = df_helmets.set_index('video')
-#             for video in tqdm(df_helmets.video.unique()):
-#                 video2helmets[video] = df_helmets_new.loc[video].reset_index(
-#                     drop=True)
-#             with open(os.path.join(processed_meta_dir, "video2helmets.pickle"), "wb") as f:
-#                 pickle.dump(video2helmets, f)
-#             # 메모리 이슈
-#             del df_helmets, df_helmets_new
-#         else:
-#             print(f"video2helemts already exists.. skip")
-
         if CFG["is_submission"] or not os.path.exists(os.path.join(processed_meta_dir, "video2frames.pickle")):
             print(
                 f"-- Mapping video2frames: [size: {len(df_video_metadata.game_play.unique())}]")
@@ -431,10 +407,6 @@ class CNN25SingleGroundDataModule(pl.LightningDataModule):
                                                 how="left"
                                                 )
 
-            # contact=1인데 헬멧정보가 없는 경우를 확인
-            # print(df_filtered)
-            # print(df_filtered[df_filtered["contact"] == 1 & (df_filtered["Endzone_left_1"].isnull() | df_filtered["Sideline_left_1"].isnull())])
-
             # save preprocessed files to writable dir.
             df_filtered.to_csv(os.path.join(
                 processed_meta_dir, "df_filtered.csv"), index=False)
@@ -455,13 +427,11 @@ class CNN25SingleGroundDataModule(pl.LightningDataModule):
         processed_meta_dir = os.path.join(self.preprocess_result_dir, run_type)
 
         print(f"------ [Load metadata] ------")
+        # NOTE: player id type string
         df_filtered = pd.read_csv(os.path.join(
             processed_meta_dir, f"df_filtered.csv"),
             dtype={"nfl_player_id_1": "string", "nfl_player_id_2": "string"})
-        # type string
 
-#         with open(os.path.join(processed_meta_dir, "video2helmets.pickle"), "rb") as f:
-#             video2helmets = pickle.load(f)
         with open(os.path.join(processed_meta_dir, "video2frames.pickle"), "rb") as f:
             video2frames = pickle.load(f)
 
@@ -506,10 +476,11 @@ class CNN25SingleGroundDataModule(pl.LightningDataModule):
         else:
             aug = self.valid_aug
 
+        # Ground와의 충돌에 관한 데이터만 사용한다.
         df_filtered_dataset = df_filtered_dataset.query(
             'G_flug == True').reset_index(drop=True)
-        df_filtered_dataset = df_filtered_dataset.query(
-            'contact == 1').reset_index(drop=True)
+        # df_filtered_dataset = df_filtered_dataset.query(
+        #     'contact == 1').reset_index(drop=True)
 
         dataset = CNN25SingleGroundDataset(
             df=df_filtered_dataset,
