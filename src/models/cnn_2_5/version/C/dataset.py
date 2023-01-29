@@ -315,7 +315,7 @@ class CNN25SingleGroundDataModule(pl.LightningDataModule):
                 subprocess.call(["ffmpeg", "-i", os.path.join(self.data_dir, f"{run_type}/{video}"), "-q:v", "2", "-f", "image2", os.path.join(
                     frame_dir, f"{video}_%04d.jpg"), "-hide_banner", "-loglevel", "error"])
 
-        if CFG["is_submission"] or not os.path.exists(os.path.join(processed_meta_dir, "video2frames.pickle")):
+        if CFG["reproduce_processed_data"] or not os.path.exists(os.path.join(processed_meta_dir, "video2frames.pickle")):
             print(
                 f"-- Mapping video2frames: [size: {len(df_video_metadata.game_play.unique())}]")
             video2frames = {}
@@ -336,8 +336,8 @@ class CNN25SingleGroundDataModule(pl.LightningDataModule):
         gc.collect()
 
         print(f"------ [Preprocess helmet sensor data] ------")
-        # CFG["is_submission"]
-        if CFG["is_submission"] or not os.path.exists(os.path.join(processed_meta_dir, "df_filtered.csv")):
+        # CFG["reproduce_processed_data"]
+        if CFG["reproduce_processed_data"] or not os.path.exists(os.path.join(processed_meta_dir, "df_filtered.csv")):
             df_tracking = pd.read_csv(os.path.join(
                 self.data_dir, f"{run_type}_player_tracking.csv"))
 

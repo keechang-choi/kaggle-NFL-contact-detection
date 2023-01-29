@@ -23,6 +23,6 @@ CFG = {
     "logger_dir": "../lightning_logs",
     "threshold": 0.29,
     "is_prediction": False,
-    "is_submission": False,
+    "reproduce_processed_data": False,
     "window": 12  # 24
 }
