@@ -13,9 +13,10 @@ class CNN25SingleGroundModel(nn.Module):
     def __init__(self, backbone):
         super(CNN25SingleGroundModel, self).__init__()
         in_chans = CFG["window"] // 4 * 2 + 1
+        # 학습할때만 pretrained를 다운로드 하게 한다.
         resnet = timm.create_model(
             backbone,
-            pretrained=True)
+            pretrained=(not CFG["is_prediction"]))
         self.backbone = nn.Sequential(*list(resnet.children())[:-1])
 
         if CFG["dataset_params"]["data_filter"] == "ground-only":
