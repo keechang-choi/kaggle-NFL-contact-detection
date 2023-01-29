@@ -18,8 +18,13 @@ class CNN25SingleGroundModel(nn.Module):
             pretrained=True)
         self.backbone = nn.Sequential(*list(resnet.children())[:-1])
 
+        if CFG["dataset_params"]["data_filter"] == "ground-only":
+            num_input_feature = 9
+        else:
+            num_input_feature = 18
+
         self.mlp = nn.Sequential(
-            nn.Linear(9, 64),
+            nn.Linear(num_input_feature, 64),
             nn.LayerNorm(64),
             nn.ReLU(),
             nn.Dropout(0.2),

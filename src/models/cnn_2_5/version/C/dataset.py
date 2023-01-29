@@ -164,7 +164,7 @@ class CNN25SingleGroundDataset(Dataset):
 
 
 class CNN25SingleGroundDataModule(pl.LightningDataModule):
-    def __init__(self, data_dir: str = "./", preprocess_result_dir: str = "./"):
+    def __init__(self, data_dir: str = "./", preprocess_result_dir: str = "./", data_filter: str = "all"):
         super().__init__()
         self.data_dir = data_dir
         self.preprocess_result_dir = preprocess_result_dir
@@ -191,16 +191,21 @@ class CNN25SingleGroundDataModule(pl.LightningDataModule):
             'direction', 'orientation', 'acceleration', 'sa'
         ]
         # TODO: 이 부분 hard-coding 된 것 개선.
-        # NOTE: Ground만 사용할 경우 player1로 feature col 변경됨.
         self.feature_cols: List[str] = ["G_flug"]
         for col in self.use_cols:
             self.feature_cols.append(col + "_1")
-            # self.feature_cols.append(col + "_2")
+            # NOTE: Ground만 사용할 경우 player1로 feature col 만 사용함
+            if data_filter != "ground-only":
+                self.feature_cols.append(col + "_2")
+        if data_filter != "ground-only":
+            self.feature_cols.append("distance")
+        # NOTE: 모델의 mlp input feature수도 바뀜, 9 vs 18
 
         self.dataset_test = None
         self.dataset_train = None
         self.dataset_valid = None
         self.dataset_pred = None
+        self.data_filter = data_filter
 
     def expand_contact_id(self, df):
         """
@@ -477,11 +482,14 @@ class CNN25SingleGroundDataModule(pl.LightningDataModule):
         else:
             aug = self.valid_aug
 
-        # Ground와의 충돌에 관한 데이터만 사용한다.
-        df_filtered_dataset = df_filtered_dataset.query(
-            'G_flug == True').reset_index(drop=True)
-        # df_filtered_dataset = df_filtered_dataset.query(
-        #     'contact == 1').reset_index(drop=True)
+        if self.data_filter == "ground-only":
+            # Ground와의 충돌에 관한 데이터만 사용한다.
+            df_filtered_dataset = df_filtered_dataset.query(
+                'G_flug == True').reset_index(drop=True)
+        elif self.data_filter == "players":
+            # 선수들 간의 충돌에 관한 데이터만 사용한다.
+            df_filtered_dataset = df_filtered_dataset.query(
+                'G_flug == False').reset_index(drop=True)
 
         dataset = CNN25SingleGroundDataset(
             df=df_filtered_dataset,

@@ -3,7 +3,9 @@ CFG = {
     'model_version': 'C',
     'dataset_params': {
         'data_dir': './data',
-        "preprocess_result_dir": "./data/processed"
+        "preprocess_result_dir": "./data/processed",
+        # all, ground-only, players
+        "data_filter": "players"
     },
     'model_params': {
         'backbone': 'resnet50'

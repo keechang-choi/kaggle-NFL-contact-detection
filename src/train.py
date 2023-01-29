@@ -51,7 +51,7 @@ if __name__ == "__main__":
                                                                    params=model_params)
 
     checkpoint_callback = ModelCheckpoint(
-        save_top_k=1, monitor="val_loss", mode="min")
+        save_top_k=1, monitor="val_loss", mode="min", save_last=True)
     # NOTE: cuda, mps, cpu for accelerator.
     # https://pytorch-lightning.readthedocs.io/en/stable/accelerators/mps_basic.html
     trainer = pl.Trainer(max_epochs=CFG["epochs"],
@@ -59,10 +59,11 @@ if __name__ == "__main__":
                          devices=1 if device_str != "cpu" else None,
                          logger=logger,
                          callbacks=[
-        EarlyStopping(monitor="val_loss", mode="min", patience=3),
+        EarlyStopping(monitor="val_loss", mode="min", patience=5),
         checkpoint_callback
     ])
-    trainer.fit(model=lightning_module, datamodule=data_module, ckpt_path=args.load_path)
+    trainer.fit(model=lightning_module, datamodule=data_module,
+                ckpt_path=args.load_path)
     trainer.test(model=lightning_module, datamodule=data_module)
     # for testing from saved model.
     # trainer.test(
