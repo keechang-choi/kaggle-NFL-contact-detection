@@ -363,7 +363,7 @@ class CNN25SingleGroundDataModule(pl.LightningDataModule):
 
             print(f"- Rolling helmet data")
             df_helmets["nfl_player_id"] = df_helmets["nfl_player_id"].astype(
-                "string")
+                str)
             # helmet 데이터에 비어있는 frame을 nan으로 채운다.
             df_reindexed_helmets = df_helmets[["game_play", "view", "frame", "nfl_player_id", "left", "width", "top", "height"]]\
                 .set_index("frame")\
@@ -378,7 +378,7 @@ class CNN25SingleGroundDataModule(pl.LightningDataModule):
                 .reset_index()
 
             df_rolled_helmets["nfl_player_id"] = df_rolled_helmets["nfl_player_id"].astype(
-                "string")
+                str)
 
             # Endzone2 있는거 제거
             df_rolled_helmets = df_rolled_helmets[df_rolled_helmets["view"] != "Endzone2"]
@@ -403,7 +403,7 @@ class CNN25SingleGroundDataModule(pl.LightningDataModule):
             for i in range(2):
                 rename_dict = {k: k+f"_{i+1}" for k in rename_list}
                 df_filtered[f"nfl_player_id_{i+1}"] = df_filtered[f"nfl_player_id_{i+1}"].astype(
-                    "string")
+                    str)
                 # player i+1에 대한 Enndzone, Sideline에서의 헬멧정보
                 df_filtered = df_filtered.merge(df_rolled_helmets.rename(columns=rename_dict),
                                                 left_on=[
@@ -436,7 +436,7 @@ class CNN25SingleGroundDataModule(pl.LightningDataModule):
         # NOTE: player id type string
         df_filtered = pd.read_csv(os.path.join(
             processed_meta_dir, f"df_filtered.csv"),
-            dtype={"nfl_player_id_1": "string", "nfl_player_id_2": "string"})
+            dtype={"nfl_player_id_1": str, "nfl_player_id_2": str})
 
         with open(os.path.join(processed_meta_dir, "video2frames.pickle"), "rb") as f:
             video2frames = pickle.load(f)
