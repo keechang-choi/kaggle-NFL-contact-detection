@@ -41,6 +41,7 @@ if __name__ == "__main__":
         os.path.dirname(__file__), CFG["logger_dir"]))
     os.makedirs(logger_path, exist_ok=True)
     logger = TensorBoardLogger(logger_path, name=CFG["model_name"])
+    logger.log_hyperparams(CFG)
 
     model_name = f"{CFG['model_name']}-{CFG['model_version']}"
     dataset_params = CFG['dataset_params']
@@ -54,14 +55,16 @@ if __name__ == "__main__":
         save_top_k=1, monitor="val_loss", mode="min", save_last=True)
     # NOTE: cuda, mps, cpu for accelerator.
     # https://pytorch-lightning.readthedocs.io/en/stable/accelerators/mps_basic.html
-    trainer = pl.Trainer(max_epochs=CFG["epochs"],
+    trainer = pl.Trainer(precision=16,
+                         max_epochs=CFG["epochs"],
                          accelerator=device_str,
                          devices=1 if device_str != "cpu" else None,
                          logger=logger,
                          callbacks=[
-        EarlyStopping(monitor="val_loss", mode="min", patience=5),
-        checkpoint_callback
-    ])
+                             EarlyStopping(monitor="val_loss",
+                                           mode="min", patience=5),
+                             checkpoint_callback
+                         ])
     trainer.fit(model=lightning_module, datamodule=data_module,
                 ckpt_path=args.load_path)
     trainer.test(model=lightning_module, datamodule=data_module)

@@ -29,9 +29,8 @@ class CNN25Model(nn.Module):
             # nn.ReLU(),
             # nn.Dropout(0.2)
         )
-        self.fc_sigmoid = nn.Sequential(
+        self.fc = nn.Sequential(
             nn.Linear(64+500*2, 1),
-            nn.Sigmoid()
         )
 
     def forward(self, img, feature):
@@ -39,7 +38,7 @@ class CNN25Model(nn.Module):
         img = img.reshape(b*2, c//2, h, w)
         img = self.backbone(img).reshape(b, -1)
         feature = self.mlp(feature)
-        y = self.fc_sigmoid(torch.cat([img, feature], dim=1))
+        y = self.fc(torch.cat([img, feature], dim=1))
 
         return y
 
@@ -55,29 +54,33 @@ class CNN25LightningModule(pl.LightningModule):
             task='binary', threshold=CFG["threshold"])
         self.mcc_loss = MCC_Loss()
         self.last_test_output = None
+        self.loss_function = nn.BCEWithLogitsLoss()
+        self.sigmoid_function = nn.Sigmoid()
 
     def training_step(self, batch, batch_index):
         img, feature, label = batch
         output = self.model(img, feature).squeeze(-1)
-        loss = F.binary_cross_entropy(output, label)
+        loss = self.loss_function(output, label)
         self.log("train_loss", loss)
         return loss
 
     def validation_step(self, batch, batch_index):
         img, feature, label = batch
         output = self.model(img, feature).squeeze(-1)
-        val_loss = F.binary_cross_entropy(output, label)
+        val_loss = self.loss_function(output, label)
         self.log("val_loss", val_loss)
 
+        output = self.sigmoid_function(output)
         self.valid_acc(output, label)
         self.log('valid_acc_step', self.valid_acc)
 
     def test_step(self, batch, batch_index):
         img, feature, label = batch
         output = self.model(img, feature).squeeze(-1)
-        test_loss = F.binary_cross_entropy(output, label)
+        test_loss = self.loss_function(output, label)
         self.log("test_loss", test_loss)
 
+        output = self.sigmoid_function(output)
         self.test_acc(output, label)
         self.log('test_acc_step', self.test_acc)
         return torch.stack((output, label), dim=1)
@@ -102,4 +105,5 @@ class CNN25LightningModule(pl.LightningModule):
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
         img, feature, label = batch
         output = self.model(img, feature).squeeze(-1)
+        output = self.sigmoid_function(output)
         return output

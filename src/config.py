@@ -1,6 +1,6 @@
 CFG = {
     'model_name': 'cnn_2_5',
-    'model_version': 'C',
+    'model_version': 'A',
     'dataset_params': {
         'data_dir': './data',
         "preprocess_result_dir": "./data/processed",
@@ -24,5 +24,5 @@ CFG = {
     "threshold": 0.29,
     "is_prediction": False,
     "reproduce_processed_data": False,
-    "window": 12  # 24
+    "window": 24
 }

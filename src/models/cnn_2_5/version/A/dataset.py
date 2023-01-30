@@ -115,7 +115,7 @@ class CNN25Dataset(Dataset):
 
 
 class CNN25DataModule(pl.LightningDataModule):
-    def __init__(self, data_dir: str = "./", preprocess_result_dir: str = "./"):
+    def __init__(self, data_dir: str = "./", preprocess_result_dir: str = "./",  data_filter: str = "all"):
         super().__init__()
         self.data_dir = data_dir
         self.preprocess_result_dir = preprocess_result_dir
@@ -123,7 +123,7 @@ class CNN25DataModule(pl.LightningDataModule):
         self.train_aug = A.Compose([
             # Bright and Contrast가 의미 있는지 모르겠으나, normalize 안해주면 에러발생.
             A.ToFloat(max_value=255),
-            # A.HorizontalFlip(p=0.5),  # 숫자 뒤집어 짐
+            A.HorizontalFlip(p=0.5),  # 숫자 뒤집어 짐
             A.ShiftScaleRotate(p=0.5, rotate_limit=5),  # 45도는 너무 큼.
             A.RandomBrightnessContrast(
                 brightness_limit=(-0.1, 0.1), contrast_limit=(-0.1, 0.1), p=0.5),
@@ -149,6 +149,8 @@ class CNN25DataModule(pl.LightningDataModule):
         self.dataset_train = None
         self.dataset_valid = None
         self.dataset_pred = None
+
+        self.data_filter = data_filter
 
     def expand_contact_id(self, df):
         """
@@ -374,6 +376,16 @@ class CNN25DataModule(pl.LightningDataModule):
             aug = self.train_aug
         else:
             aug = self.valid_aug
+
+        if self.data_filter == "ground-only":
+            # Ground와의 충돌에 관한 데이터만 사용한다.
+            df_filtered_dataset = df_filtered_dataset.query(
+                'G_flug == True').reset_index(drop=True)
+        elif self.data_filter == "players":
+            # 선수들 간의 충돌에 관한 데이터만 사용한다.
+            df_filtered_dataset = df_filtered_dataset.query(
+                'G_flug == False').reset_index(drop=True)
+
         dataset = CNN25Dataset(
             df=df_filtered_dataset,
             data_dir=self.data_dir,
