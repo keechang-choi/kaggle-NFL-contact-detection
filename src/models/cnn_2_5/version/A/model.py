@@ -36,6 +36,7 @@ class CNN25Model(nn.Module):
     def forward(self, img, feature):
         b, c, h, w = img.shape
         img = img.reshape(b*2, c//2, h, w)
+        # img = img.to(torch.float32)
         img = self.backbone(img).reshape(b, -1)
         feature = self.mlp(feature)
         y = self.fc(torch.cat([img, feature], dim=1))
