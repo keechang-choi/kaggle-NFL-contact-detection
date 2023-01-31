@@ -55,8 +55,7 @@ if __name__ == "__main__":
         save_top_k=1, monitor="val_loss", mode="min", save_last=True)
     # NOTE: cuda, mps, cpu for accelerator.
     # https://pytorch-lightning.readthedocs.io/en/stable/accelerators/mps_basic.html
-    trainer = pl.Trainer(precision=16,
-                         max_epochs=CFG["epochs"],
+    trainer = pl.Trainer(max_epochs=CFG["epochs"],
                          accelerator=device_str,
                          devices=1 if device_str != "cpu" else None,
                          logger=logger,
@@ -64,7 +63,7 @@ if __name__ == "__main__":
                              EarlyStopping(monitor="val_loss",
                                            mode="min", patience=5),
                              checkpoint_callback
-                         ])
+    ])
     trainer.fit(model=lightning_module, datamodule=data_module,
                 ckpt_path=args.load_path)
     trainer.test(model=lightning_module, datamodule=data_module)
