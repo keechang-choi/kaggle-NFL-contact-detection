@@ -102,8 +102,8 @@ class CNN25Dataset(Dataset):
                         # print(f"img helmet size: {w} x {h}")
                         # 10~60 정도? helmet size
                         # 헬멧 크기의 10배 정도로 자름.
-                        crop_size = int((max(w, h)*10))
-                        # crop_size = self.image_size
+                        # crop_size = int((max(w, h)*10))
+                        crop_size = self.image_size
                         img_tmp = np.zeros(
                             (crop_size, crop_size), dtype=np.float32)
                         # print(crop_size)
@@ -123,14 +123,14 @@ class CNN25Dataset(Dataset):
                         offset_y = (crop_size - img.shape[0]) // 2
                         offset_x = (crop_size - img.shape[1]) // 2
                         # resize 하기 전에 zero padding 사용해서 중앙으로 옮김.
-                        img_tmp[offset_y: offset_y+img.shape[0],
+                        img_new[offset_y: offset_y+img.shape[0],
                                 offset_x: offset_x+img.shape[1]] = img
 
                         # resize를 통해 CNN에 들어갈 사이즈로 맞춰줌.
-                        img_tmp = cv2.resize(
-                            img_tmp, (self.image_size, self.image_size))
-                        img_new[:img_tmp.shape[0],
-                                :img_tmp.shape[1]] = img_tmp
+                        # img_tmp = cv2.resize(
+                        #     img_tmp, (self.image_size, self.image_size))
+                        # img_new[:img_tmp.shape[0],
+                        #         :img_tmp.shape[1]] = img_tmp
                     except Exception as e:
                         print(os.path.join(self.preprocess_result_dir,
                               f"frames/{video}_{f:04d}.jpg"))
