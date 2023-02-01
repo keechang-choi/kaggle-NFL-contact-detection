@@ -283,6 +283,8 @@ class CNN25SingleGroundDataModule(pl.LightningDataModule):
         df["game_play"] = df["game_play"].fillna(game_play)
         df["view"] = df["view"].fillna(view)
         df["nfl_player_id"] = df["nfl_player_id"].fillna(nfl_player_id)
+        df[["left", "width", "top", "height"]] = df[["left", "width",
+                                                     "top", "height"]].interpolate(limit_direction="both")
         return df
 
     def preprocess_dataset(self):
@@ -371,30 +373,26 @@ class CNN25SingleGroundDataModule(pl.LightningDataModule):
                 .apply(self.reindex_by_frame)\
                 .reset_index(["game_play", "view", "nfl_player_id"], drop=True)
 
-            # helmet 데이터의 각 frame을 window 크기로 돌며 위치와 크기를 평균낸다.
-            df_rolled_helmets = df_reindexed_helmets.groupby(["game_play", "view", "nfl_player_id"], dropna=False)\
-                .rolling(CFG["window"], min_periods=1, center=True)\
-                .mean()\
-                .reset_index()
+            df_reindexed_helmets = df_reindexed_helmets.reset_index()
 
-            df_rolled_helmets["nfl_player_id"] = df_rolled_helmets["nfl_player_id"].astype(
+            df_reindexed_helmets["nfl_player_id"] = df_reindexed_helmets["nfl_player_id"].astype(
                 str)
 
             # Endzone2 있는거 제거
-            df_rolled_helmets = df_rolled_helmets[df_rolled_helmets["view"] != "Endzone2"]
+            df_reindexed_helmets = df_reindexed_helmets[df_reindexed_helmets["view"] != "Endzone2"]
 
             # Endzone과 Sideline의 각 xwyh 를 분리한다.
-            df_rolled_helmets = df_rolled_helmets.pivot_table(values=["left", "width", "top", "height"], index=[
-                                                              "game_play", "nfl_player_id", "frame"], columns=["view"], aggfunc="first").reset_index()
+            df_reindexed_helmets = df_reindexed_helmets.pivot_table(values=["left", "width", "top", "height"], index=[
+                "game_play", "nfl_player_id", "frame"], columns=["view"], aggfunc="first").reset_index()
 
             # 컬럼 이름을 다시 지정한다.
             new_columns = []
-            for c in df_rolled_helmets.columns.to_flat_index():
+            for c in df_reindexed_helmets.columns.to_flat_index():
                 if '' in c:
                     new_columns.append(c[0])
                 else:
                     new_columns.append(c[1]+"_"+c[0])
-            df_rolled_helmets.columns = new_columns
+            df_reindexed_helmets.columns = new_columns
             # 각 컬럼이름
             rename_list = ["nfl_player_id", "Endzone_left", "Endzone_width", "Endzone_top",
                            "Endzone_height", "Sideline_left", "Sideline_width", "Sideline_top", "Sideline_height"]
@@ -405,7 +403,7 @@ class CNN25SingleGroundDataModule(pl.LightningDataModule):
                 df_filtered[f"nfl_player_id_{i+1}"] = df_filtered[f"nfl_player_id_{i+1}"].astype(
                     str)
                 # player i+1에 대한 Enndzone, Sideline에서의 헬멧정보
-                df_filtered = df_filtered.merge(df_rolled_helmets.rename(columns=rename_dict),
+                df_filtered = df_filtered.merge(df_reindexed_helmets.rename(columns=rename_dict),
                                                 left_on=[
                                                     "game_play", f"nfl_player_id_{i+1}", "frame"],
                                                 right_on=[
