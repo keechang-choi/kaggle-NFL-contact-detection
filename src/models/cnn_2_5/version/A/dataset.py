@@ -263,6 +263,8 @@ class CNN25DataModule(pl.LightningDataModule):
         df["game_play"] = df["game_play"].fillna(game_play)
         df["view"] = df["view"].fillna(view)
         df["nfl_player_id"] = df["nfl_player_id"].fillna(nfl_player_id)
+        df[["left", "width", "top", "height"]] = df[["left", "width",
+                                                     "top", "height"]].interpolate(limit_direction="both")
         return df
 
     def preprocess_dataset(self):
@@ -350,10 +352,12 @@ class CNN25DataModule(pl.LightningDataModule):
                 .reset_index(["game_play", "view", "nfl_player_id"], drop=True)
 
             # helmet 데이터의 각 frame을 window 크기로 돌며 위치와 크기를 평균낸다.
-            df_rolled_helmets = df_reindexed_helmets.groupby(["game_play", "view", "nfl_player_id"], dropna=False)\
-                .rolling(CFG["window"], min_periods=1, center=True)\
-                .mean()\
-                .reset_index()
+            # 불필요한 것 같기도?
+            # df_rolled_helmets = df_reindexed_helmets.groupby(["game_play", "view", "nfl_player_id"], dropna=False)\
+            #     .rolling(CFG["window"], min_periods=1, center=True)\
+            #     .mean()\
+            #     .reset_index()
+            df_rolled_helmets = df_reindexed_helmets.reset_index()
 
             df_rolled_helmets["nfl_player_id"] = df_rolled_helmets["nfl_player_id"].astype(
                 str)
