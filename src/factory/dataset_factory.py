@@ -1,4 +1,5 @@
 from models.cnn_2_5.version.A.dataset import CNN25DataModule
+from models.cnn_2_5.version.C.dataset import CNN25SingleGroundDataModule
 
 
 class DataSetFactory():
@@ -12,6 +13,8 @@ class DataSetFactory():
         elif name == "cnn_2_5-B":
             # share datamodule with A
             data_module = CNN25DataModule(**params)
+        elif name == "cnn_2_5-C":
+            data_module = CNN25SingleGroundDataModule(**params)
         else:
             raise NotImplementedError()
 

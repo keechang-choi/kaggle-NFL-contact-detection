@@ -1,5 +1,6 @@
 from models.cnn_2_5.version.A.model import CNN25LightningModule
 from models.cnn_2_5.version.B.model import CNN25BSLightningModule
+from models.cnn_2_5.version.C.model import CNN25SingleGroundLightningModule
 
 
 class LightningModuleFactory():
@@ -19,6 +20,8 @@ class LightningModuleFactory():
             lightning_module = CNN25LightningModule(**params)
         elif name == "cnn_2_5-B":
             lightning_module = CNN25BSLightningModule(**params)
+        elif name == "cnn_2_5-C":
+            lightning_module = CNN25SingleGroundLightningModule(**params)
         else:
             raise NotImplementedError()
 
@@ -34,6 +37,10 @@ class LightningModuleFactory():
                 **params)
         elif name == "cnn_2_5-B":
             lightning_module = CNN25BSLightningModule.load_from_checkpoint(
+                load_path,
+                **params)
+        elif name == "cnn_2_5-C":
+            lightning_module = CNN25SingleGroundLightningModule.load_from_checkpoint(
                 load_path,
                 **params)
         else:
