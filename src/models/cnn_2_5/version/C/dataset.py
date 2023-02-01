@@ -55,104 +55,100 @@ class CNN25SingleGroundDataset(Dataset):
         imgs = []
         for view in ['Endzone', 'Sideline']:
             video = self.game_play[idx] + f'_{view}.mp4'
-            bboxes = []
             query_game_play = self.game_play[idx]
 
+            # 하나의 데이터셋은 하나의 이미지를 포함하도록 함.
             query_res = self.df.query(f"game_play == '{query_game_play}' and "
                                       f"nfl_player_id_1 == '{players[0]}' and "
                                       f"nfl_player_id_2 == '{players[1]}' and "
                                       f"frame == {frame}"
                                       )
+            is_query_valid = False
+            xl, wl, yl, hl = [], [], [], []
             # bbox에 각 선수, view에 대한 frame의 window 평균 헬멧정보를 넣는다.
             for i in range(2):
-
-                is_query_valid = False
                 if len(query_res) == 1:
                     x = query_res.iloc[0][f"{view}_left_{i+1}"]
                     w = query_res.iloc[0][f"{view}_width_{i+1}"]
                     y = query_res.iloc[0][f"{view}_top_{i+1}"]
                     h = query_res.iloc[0][f"{view}_height_{i+1}"]
                     if all(not np.isnan(value) for value in [x, w, y, h]):
+                        xl.append(x)
+                        wl.append(w)
+                        yl.append(y)
+                        hl.append(h)
                         is_query_valid = True
 
-                if is_query_valid:
-                    bboxes.append([x, w, y, h])
-                else:
-                    bboxes.append([np.nan, np.nan, np.nan, np.nan])
-            bboxes = pd.DataFrame(bboxes).interpolate(
-                limit_direction='both').values
-            bboxes = bboxes[::4]
-
-            if bboxes.sum() > 0:
+            # 선수 1, 2 중 한명이라도 helmet 정보 있으면 데이터로 씀.
+            if is_query_valid:
                 flag = 1
+                x_avg = sum(xl)/len(xl)
+                w_avg = sum(wl)/len(wl)
+                y_avg = sum(yl)/len(yl)
+                h_avg = sum(hl)/len(hl)
+                bbox = [x_avg, w_avg, y_avg, h_avg]
             else:
-                # 보통 트랙킹 데이터에서 가져온 선수가 해당 프레임에서 안잡힌 경우.
                 flag = 0
-                # print(
-                #     f"flag: {flag}-{len(query_res)} , idx: {idx}, video: {video}, frame: {frame}, player: {players}")
 
-            # 하나의 데이터셋은 하나의 이미지를 포함하도록 함.
-            # for i, f in enumerate(range(frame-window, frame+window+1, 4)):
-            for i, f in enumerate(range(frame, frame+1, 4)):
-                img_new = np.zeros(
-                    (self.image_size, self.image_size, 3), dtype=np.float32)
-                # if f > self.video2frames[video]:
-                # # 목적 frame에 video길이 넘는 경우가 있는데 왜그런지 잘 모르겠음.
-                #     print(
-                #         f"flag: {flag}, frame: {f}, video frame: {self.video2frames[video]}")
-                if flag == 1 and f <= self.video2frames[video]:
-                    try:
-                        img = cv2.imread(
-                            os.path.join(self.preprocess_result_dir, f"frames/{video}_{f:04d}.jpg"), cv2.IMREAD_COLOR)
-                        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            img_new = np.zeros(
+                (self.image_size, self.image_size, 3), dtype=np.float32)
+            # if frame > self.video2frames[video]:
+            # # 목적 frame에 video길이 넘는 경우가 있는데 왜그런지 잘 모르겠음.
+            #     print(
+            #         f"flag: {flag}, frame: {frame}, video frame: {self.video2frames[video]}")
+            if flag == 1 and frame <= self.video2frames[video]:
+                try:
+                    img = cv2.imread(
+                        os.path.join(self.preprocess_result_dir, f"frames/{video}_{frame:04d}.jpg"), cv2.IMREAD_COLOR)
+                    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-                        x, w, y, h = bboxes[i]
-                        # print(f"img helmet size: {w} x {h}")
-                        # 10~60 정도? helmet size
-                        # 헬멧 크기의 10배 정도로 자름.
-                        crop_size = int((max(w, h)*10))
-                        # crop_size = 256
-                        img_tmp = np.zeros(
-                            (crop_size, crop_size, 3), dtype=np.float32)
-                        # print(crop_size)
-                        crop_half = crop_size // 2
-                        crop_start_y = max(int(y+h/2)-crop_half, 0)
-                        crop_end_y = min(int(y+h/2)+crop_half, img.shape[0])
+                    x, w, y, h = bbox
+                    # print(f"img helmet size: {w} x {h}")
+                    # 10~60 정도? helmet size
+                    # 헬멧 크기의 10배 정도로 자름.
+                    crop_size = int((max(w, h)*10))
+                    # crop_size = 256
+                    img_tmp = np.zeros(
+                        (crop_size, crop_size, 3), dtype=np.float32)
+                    # print(crop_size)
+                    crop_half = crop_size // 2
+                    crop_start_y = max(int(y+h/2)-crop_half, 0)
+                    crop_end_y = min(int(y+h/2)+crop_half, img.shape[0])
 
-                        crop_start_x = max(int(x+w/2)-crop_half, 0)
-                        crop_end_x = min(int(x+w/2)+crop_half, img.shape[1])
-                        # crop할 크기에 따라 원본 프레임에서 이미지 잘라냄.
-                        img = img[crop_start_y:crop_end_y,
-                                  crop_start_x:crop_end_x,
-                                  :]
-                        # 자른 후 정규화 및 transform을 추가한다.
-                        img = self.aug(image=img)["image"]
+                    crop_start_x = max(int(x+w/2)-crop_half, 0)
+                    crop_end_x = min(int(x+w/2)+crop_half, img.shape[1])
+                    # crop할 크기에 따라 원본 프레임에서 이미지 잘라냄.
+                    img = img[crop_start_y:crop_end_y,
+                              crop_start_x:crop_end_x,
+                              :]
+                    # 자른 후 정규화 및 transform을 추가한다.
+                    img = self.aug(image=img)["image"]
 
-                        # 이미지 가장자리에서 crop 크기가 안나오는 경우 있음.
-                        offset_y = (crop_size - img.shape[0]) // 2
-                        offset_x = (crop_size - img.shape[1]) // 2
-                        # resize 하기 전에 zero padding 사용해서 중앙으로 옮김.
-                        img_tmp[offset_y: offset_y+img.shape[0],
-                                offset_x: offset_x+img.shape[1],
-                                :] = img
+                    # 이미지 가장자리에서 crop 크기가 안나오는 경우 있음.
+                    offset_y = (crop_size - img.shape[0]) // 2
+                    offset_x = (crop_size - img.shape[1]) // 2
+                    # resize 하기 전에 zero padding 사용해서 중앙으로 옮김.
+                    img_tmp[offset_y: offset_y+img.shape[0],
+                            offset_x: offset_x+img.shape[1],
+                            :] = img
 
-                        # resize를 통해 CNN에 들어갈 사이즈로 맞춰줌.
-                        img_tmp = cv2.resize(
-                            img_tmp, (self.image_size, self.image_size))
-                        img_new[:img_tmp.shape[0],
-                                :img_tmp.shape[1], :] = img_tmp
-                    except Exception as e:
-                        print(os.path.join(self.preprocess_result_dir,
-                              f"frames/{video}_{f:04d}.jpg"))
-                        print(os.path.exists(os.path.join(
-                            self.preprocess_result_dir, f"frames/{video}_{f:04d}.jpg")))
-                        print(f"box: {(x,y)}, {(w,h)}")
-                        print(f"img is None: {img is None}")
-                        print(f"img shape: {img.shape}")
-                        print(e)
-                        raise e
+                    # resize를 통해 CNN에 들어갈 사이즈로 맞춰줌.
+                    img_tmp = cv2.resize(
+                        img_tmp, (self.image_size, self.image_size))
+                    img_new[:img_tmp.shape[0],
+                            :img_tmp.shape[1], :] = img_tmp
+                except Exception as e:
+                    print(os.path.join(self.preprocess_result_dir,
+                                       f"frames/{video}_{frame:04d}.jpg"))
+                    print(os.path.exists(os.path.join(
+                        self.preprocess_result_dir, f"frames/{video}_{f:04d}.jpg")))
+                    print(f"box: {(x,y)}, {(w,h)}")
+                    print(f"img is None: {img is None}")
+                    print(f"img shape: {img.shape}")
+                    print(e)
+                    raise e
 
-                imgs.append(img_new)
+            imgs.append(img_new)
 
         feature = np.float32(self.feature[idx])
         imgs = np.array(imgs)
