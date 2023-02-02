@@ -8,16 +8,17 @@ CFG = {
         "data_filter": "players"
     },
     'model_params': {
-        'backbone': 'resnet50'
+        'backbone': 'resnet50',
+        "pos_weight": 9.195  # 1.0
     },
     "num_train_video": 240,
     'seed': 42,
     'img_size': 256,
-    'epochs': 10,
+    'epochs': 15,
     'lr': 1e-3,
     'weight_decay': 1e-6,
     'num_workers': 16,
-    "batch_size": 16,
+    "batch_size": 32,
     "logger_dir": "../lightning_logs",
     "threshold": 0.29,
     "is_prediction": False,

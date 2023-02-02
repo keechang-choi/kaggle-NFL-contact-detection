@@ -61,7 +61,7 @@ if __name__ == "__main__":
                          logger=logger,
                          callbacks=[
                              EarlyStopping(monitor="val_loss",
-                                           mode="min", patience=5),
+                                           mode="min", patience=10),
                              checkpoint_callback
     ])
     trainer.fit(model=lightning_module, datamodule=data_module,
