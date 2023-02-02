@@ -5,7 +5,7 @@ CFG = {
         'data_dir': './data',
         "preprocess_result_dir": "./data/processed",
         # all, ground-only, players
-        "data_filter": "players"
+        "data_filter": "ground-only"
     },
     'model_params': {
         'backbone': 'resnet50',
@@ -14,7 +14,7 @@ CFG = {
     "num_train_video": 240,
     'seed': 42,
     'img_size': 256,
-    'epochs': 15,
+    'epochs': 10,
     'lr': 1e-3,
     'weight_decay': 1e-6,
     'num_workers': 16,

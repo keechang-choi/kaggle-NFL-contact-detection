@@ -107,8 +107,11 @@ class CNN25SingleGroundDataset(Dataset):
                     # 10~60 정도? helmet size
                     # 헬멧 크기의 10배 정도로 자름.
                     # random으로 헬멧크기의 배수 만큼 자른다.
-                    random_crop_ratio = np.random.uniform(8.0, 12.0, 1)[0]
-                    crop_size = int((max(w, h)*random_crop_ratio))
+                    if self.mode == "fit":
+                        crop_ratio = np.random.uniform(9.0, 11.0, 1)[0]
+                    else:
+                        crop_ratio = 10
+                    crop_size = int((max(w, h)*crop_ratio))
                     # crop_size = 256
                     img_tmp = np.zeros(
                         (crop_size, crop_size, 3), dtype=np.float32)
