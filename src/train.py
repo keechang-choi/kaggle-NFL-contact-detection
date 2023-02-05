@@ -52,16 +52,17 @@ if __name__ == "__main__":
     dataset_params = CFG['dataset_params']
     model_params = CFG['model_params']
 
+    data_module = DataSetFactory.get_dataset(name=model_name,
+                                             params=dataset_params)
+    lightning_module = LightningModuleFactory.get_lightning_module(name=model_name,
+                                                                   params=model_params)
+
     wandb_logger = WandbLogger(project="kaggle-nfl",
                                name=exp_name,
                                log_model="all",
                                entity='pobba',
                                save_dir=f'{logger_path}')
-
-    data_module = DataSetFactory.get_dataset(name=model_name,
-                                             params=dataset_params)
-    lightning_module = LightningModuleFactory.get_lightning_module(name=model_name,
-                                                                   params=model_params)
+    wandb_logger.watch(model=lightning_module, log='all')
 
     checkpoint_callback = ModelCheckpoint(
         save_top_k=1, monitor="val_loss", mode="min", save_last=True)
