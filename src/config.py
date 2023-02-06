@@ -6,10 +6,11 @@ CFG = {
         'data_dir': './data',
         "preprocess_result_dir": "./data/processed",
         # all, ground-only, players
-        "data_filter": "players"
+        "data_filter": "ground-only"
     },
     'model_params': {
-        'backbone': 'resnet50'
+        'backbone': 'resnet50',
+        "pos_weight": 9.195  # 1.0
     },
     "num_train_video": 240,
     'seed': 42,
