@@ -63,6 +63,7 @@ if __name__ == "__main__":
                                entity='pobba',
                                save_dir=f'{logger_path}')
     wandb_logger.watch(model=lightning_module, log='all')
+    wandb_logger.log_hyperparams(CFG)
 
     checkpoint_callback = ModelCheckpoint(
         save_top_k=1, monitor="val_loss", mode="min", save_last=True)
