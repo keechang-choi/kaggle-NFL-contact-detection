@@ -1,5 +1,6 @@
 from models.cnn_2_5.version.A.dataset import CNN25DataModule
 from models.cnn_2_5.version.C.dataset import CNN25SingleGroundDataModule
+from models.cnn_2_5.version.D.dataset import CNN25SingleFrameDataModule
 
 
 class DataSetFactory():
@@ -15,6 +16,8 @@ class DataSetFactory():
             data_module = CNN25DataModule(**params)
         elif name == "cnn_2_5-C":
             data_module = CNN25SingleGroundDataModule(**params)
+        elif name == "cnn_2_5-D":
+            data_module = CNN25SingleFrameDataModule(**params)
         else:
             raise NotImplementedError()
 

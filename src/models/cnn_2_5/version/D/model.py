@@ -9,15 +9,20 @@ import torchmetrics
 from utils.loss import MCC_Loss
 from utils.loss import sigmoid_focal_loss
 
-class CNN25SingleGroundModel(nn.Module):
+
+class CNN25SingleFrameModel(nn.Module):
     def __init__(self, backbone):
-        super(CNN25SingleGroundModel, self).__init__()
+        super(CNN25SingleFrameModel, self).__init__()
         in_chans = CFG["window"] // 4 * 2 + 1
         # 학습할때만 pretrained를 다운로드 하게 한다.
-        resnet = timm.create_model(
+        resnet_end = timm.create_model(
             backbone,
             pretrained=(not CFG["is_prediction"]))
-        self.backbone = nn.Sequential(*list(resnet.children())[:-1])
+        resnet_side = timm.create_model(
+            backbone,
+            pretrained=(not CFG["is_prediction"]))
+        self.backbone_end = nn.Sequential(*list(resnet_end.children())[:-1])
+        self.backbone_side = nn.Sequential(*list(resnet_side.children())[:-1])
 
         if CFG["dataset_params"]["data_filter"] == "ground-only":
             num_input_feature = 9
@@ -46,17 +51,10 @@ class CNN25SingleGroundModel(nn.Module):
         # batch와 view를 바꿔서 넣어줌
         img = img.transpose(0, 1)
 
-        view_pool = []
-        for each_view in img:
-            each_view = self.backbone(each_view)
-            # batch_size x 2048
-            # each_view = each_view.view(each_view.size(0), -1)
-            view_pool.append(each_view)
-
-        pooled_view = view_pool[0]
-        # view max pooling before fc
-        for i in range(1, len(view_pool)):
-            pooled_view = torch.max(pooled_view, view_pool[i])
+        img_end, img_side = img[0], img[1]
+        end_view = self.backbone_end(img_end)
+        side_view = self.backbone_side(img_side)
+        pooled_view = torch.max(end_view, side_view)
 
         feature = self.mlp(feature)
         y = self.fc(torch.cat([pooled_view, feature], dim=1))
@@ -64,10 +62,10 @@ class CNN25SingleGroundModel(nn.Module):
         return y
 
 
-class CNN25SingleGroundLightningModule(pl.LightningModule):
+class CNN25SingleFrameLightningModule(pl.LightningModule):
     def __init__(self, backbone, pos_weight=None):
         super().__init__()
-        self.model = CNN25SingleGroundModel(backbone)
+        self.model = CNN25SingleFrameModel(backbone)
 
         self.valid_acc = torchmetrics.Accuracy(
             task='binary', threshold=CFG["threshold"])
@@ -75,9 +73,7 @@ class CNN25SingleGroundLightningModule(pl.LightningModule):
             task='binary', threshold=CFG["threshold"])
         self.mcc_loss = MCC_Loss()
         self.last_test_output = None
-        pos_weight = torch.FloatTensor([pos_weight])
         self.loss_function = sigmoid_focal_loss
-        # nn.BCEWithLogitsLoss(pos_weight=pos_weight)
         self.sigmoid_function = nn.Sigmoid()
 
     def training_step(self, batch, batch_index):

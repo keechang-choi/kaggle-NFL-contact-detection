@@ -6,7 +6,7 @@ import timm
 from config import CFG
 import torchmetrics
 
-from utils.mcc import MCC_Loss
+from utils.loss import MCC_Loss
 
 # CNN 2.5D  Backbone Separated
 
