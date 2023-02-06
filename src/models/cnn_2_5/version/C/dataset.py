@@ -106,7 +106,12 @@ class CNN25SingleGroundDataset(Dataset):
                     # print(f"img helmet size: {w} x {h}")
                     # 10~60 정도? helmet size
                     # 헬멧 크기의 10배 정도로 자름.
-                    crop_size = int((max(w, h)*10))
+                    # random으로 헬멧크기의 배수 만큼 자른다.
+                    if self.mode == "fit":
+                        crop_ratio = np.random.uniform(9.0, 11.0, 1)[0]
+                    else:
+                        crop_ratio = 10
+                    crop_size = int((max(w, h)*crop_ratio))
                     # crop_size = 256
                     img_tmp = np.zeros(
                         (crop_size, crop_size, 3), dtype=np.float32)
@@ -141,7 +146,7 @@ class CNN25SingleGroundDataset(Dataset):
                     print(os.path.join(self.preprocess_result_dir,
                                        f"frames/{video}_{frame:04d}.jpg"))
                     print(os.path.exists(os.path.join(
-                        self.preprocess_result_dir, f"frames/{video}_{f:04d}.jpg")))
+                        self.preprocess_result_dir, f"frames/{video}_{frame:04d}.jpg")))
                     print(f"box: {(x,y)}, {(w,h)}")
                     print(f"img is None: {img is None}")
                     print(f"img shape: {img.shape}")
@@ -169,7 +174,7 @@ class CNN25SingleGroundDataModule(pl.LightningDataModule):
             # Bright and Contrast가 의미 있는지 모르겠으나, normalize 안해주면 에러발생.
             A.ToFloat(max_value=255),
             A.HorizontalFlip(p=0.5),  # 숫자 뒤집어 짐
-            A.ShiftScaleRotate(p=0.5, rotate_limit=5),  # 45도는 너무 큼.
+            A.ShiftScaleRotate(p=0.5, rotate_limit=10),  # 45도는 너무 큼.
             A.RandomBrightnessContrast(
                 brightness_limit=(-0.1, 0.1), contrast_limit=(-0.1, 0.1), p=0.5),
             A.Normalize(mean=(0.485, 0.456, 0.406),
