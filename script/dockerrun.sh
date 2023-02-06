@@ -12,6 +12,7 @@ docker run --rm -v "`pwd`:/workspace" \
      -p 6006:6006 \
      --gpus '"device=0"' \
      --shm-size=16gb \
+     --env-file .env \
      $IMAGE_NAME
      # --memory=10g \
 cd -

@@ -7,6 +7,8 @@ from pytorch_lightning.loggers import TensorBoardLogger
 import argparse
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.loggers import WandbLogger
+import datetime
 
 from config import CFG
 from factory.dataset_factory import DataSetFactory
@@ -25,6 +27,7 @@ def seed_everything(seed):
 
 
 if __name__ == "__main__":
+
     parser = argparse.ArgumentParser(description="training args")
     parser.add_argument("--load_path", type=str, default="")
     args = parser.parse_args()
@@ -40,16 +43,26 @@ if __name__ == "__main__":
     logger_path = os.path.abspath(os.path.join(
         os.path.dirname(__file__), CFG["logger_dir"]))
     os.makedirs(logger_path, exist_ok=True)
-    logger = TensorBoardLogger(logger_path, name=CFG["model_name"])
-    logger.log_hyperparams(CFG)
 
     model_name = f"{CFG['model_name']}-{CFG['model_version']}"
+    if CFG['exp_name'] == '':
+        exp_name = f"{model_name}_{datetime.datetime.now().strftime('%m-%d_%H:%M:%S')}"
+    else:
+        exp_name = CFG['exp_name']
     dataset_params = CFG['dataset_params']
     model_params = CFG['model_params']
+
     data_module = DataSetFactory.get_dataset(name=model_name,
                                              params=dataset_params)
     lightning_module = LightningModuleFactory.get_lightning_module(name=model_name,
                                                                    params=model_params)
+
+    wandb_logger = WandbLogger(project="kaggle-nfl",
+                               name=exp_name,
+                               log_model="all",
+                               entity='pobba',
+                               save_dir=f'{logger_path}')
+    wandb_logger.watch(model=lightning_module, log='all')
 
     checkpoint_callback = ModelCheckpoint(
         save_top_k=1, monitor="val_loss", mode="min", save_last=True)
@@ -58,7 +71,7 @@ if __name__ == "__main__":
     trainer = pl.Trainer(max_epochs=CFG["epochs"],
                          accelerator=device_str,
                          devices=1 if device_str != "cpu" else None,
-                         logger=logger,
+                         logger=wandb_logger,
                          callbacks=[
                              EarlyStopping(monitor="val_loss",
                                            mode="min", patience=10),

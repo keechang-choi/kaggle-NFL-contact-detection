@@ -1,6 +1,7 @@
 CFG = {
+    'exp_name': '',
     'model_name': 'cnn_2_5',
-    'model_version': 'C',
+    'model_version': 'D',
     'dataset_params': {
         'data_dir': './data',
         "preprocess_result_dir": "./data/processed",
@@ -17,8 +18,8 @@ CFG = {
     'epochs': 10,
     'lr': 1e-3,
     'weight_decay': 1e-6,
-    'num_workers': 16,
-    "batch_size": 32,
+    'num_workers': 8,
+    "batch_size": 24,
     "logger_dir": "../lightning_logs",
     "threshold": 0.29,
     "is_prediction": False,
