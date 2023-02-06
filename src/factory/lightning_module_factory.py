@@ -46,7 +46,7 @@ class LightningModuleFactory():
             lightning_module = CNN25SingleGroundLightningModule.load_from_checkpoint(
                 load_path,
                 **params)
-        elif name == "cnn_2_5-C":
+        elif name == "cnn_2_5-D":
             lightning_module = CNN25SingleFrameLightningModule.load_from_checkpoint(
                 load_path,
                 **params)
