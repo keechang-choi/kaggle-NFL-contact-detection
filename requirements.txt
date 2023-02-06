@@ -14,3 +14,4 @@ pytorch-lightning
 tensorboard
 autopep8
 torchmetrics
+wandb
