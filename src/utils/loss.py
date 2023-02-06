@@ -1,6 +1,14 @@
 # https://www.kaggle.com/competitions/nfl-player-contact-detection/discussion/370723
 import torch
 from torch import nn
+import torchvision
+
+def sigmoid_focal_loss(inputs, targets):
+    return torchvision.ops.focal_loss.sigmoid_focal_loss(
+        inputs=inputs,
+        targets=targets,
+        reduction="mean"
+    )
 
 
 class MCC_Loss(nn.Module):
