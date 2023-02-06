@@ -5,10 +5,9 @@ from torch.nn import functional as F
 import timm
 from config import CFG
 import torchmetrics
-import torchvision
 
-from utils.mcc import MCC_Loss
-
+from utils.loss import MCC_Loss
+from utils.loss import sigmoid_focal_loss
 
 class CNN25SingleGroundModel(nn.Module):
     def __init__(self, backbone):
@@ -63,14 +62,6 @@ class CNN25SingleGroundModel(nn.Module):
         y = self.fc(torch.cat([pooled_view, feature], dim=1))
 
         return y
-
-
-def sigmoid_focal_loss(inputs, targets):
-    return torchvision.ops.focal_loss.sigmoid_focal_loss(
-        inputs=inputs,
-        targets=targets,
-        reduction="mean"
-    )
 
 
 class CNN25SingleGroundLightningModule(pl.LightningModule):
